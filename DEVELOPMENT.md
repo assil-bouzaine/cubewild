@@ -61,12 +61,18 @@ Done (phase 3): stairs and slabs for the block list's stones (`SHAPE_FULL` mater
 `settle::set_concrete` sets it beside water each frame from the edited places) and glazed
 terracotta (furnace). The texture array may now hold up to 2048 layers.
 
+Done (phase 4): spruce, jungle and acacia (catalogue logs, planks and fences; stair,
+slab, door, trapdoor, sign and gate families for them, plus birch trapdoors and signs;
+`items::wood_piece` names every wooden piece by wood). Generator 4 gives the spruce,
+jungle and acacia trees their own logs and changes nothing else; worlds made with
+generator 3 or older keep oak trunks. Recipes that Minecraft makes from any planks or
+any log take every wood (`crafting::takes`). Dark oak needs a dark forest first.
+
 Next phases, by how well they fit:
-1. New wood types (spruce, jungle, acacia, dark oak) for the trees already generated:
-   logs, planks, stairs, slabs, fences, doors, signs.
-2. Nature blocks: pumpkins, melons, flowers, vines, lily pads, mushroom blocks, coral.
-3. Brewing stand (needs potions); facing for glazed terracotta.
-4. Redstone (54 blocks) once there is a power system.
+1. Nature blocks: pumpkins, melons, flowers, vines, lily pads, mushroom blocks, coral.
+2. Brewing stand (needs potions); facing for glazed terracotta; stripped logs and wood;
+   boats per wood; dark oak with a dark forest biome.
+3. Redstone (54 blocks) once there is a power system.
 Stack size stays 99 for now: Minecraft's 64 would cut saved stacks above 64 on load
 (`loot::parse_stack` clamps), so it needs a split-on-load migration first.
 

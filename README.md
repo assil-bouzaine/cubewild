@@ -177,6 +177,15 @@ poured or running onto it) it sets into **concrete** of its colour. Coloured ter
 fired in a furnace turns into **glazed terracotta**, each colour with its own pattern
 (Minecraft's glazed tiles also turn to face you; these do not).
 
+**Woods**: besides oak and birch there are now **spruce**, **jungle** and **acacia**,
+each with its log, planks, stairs, slab, fence, fence gate, door, trapdoor and sign
+(birch also gains a trapdoor and a sign). In new worlds the pine (now called spruce),
+jungle and acacia trees grow their own logs, and saplings grown in any world do too;
+existing worlds keep the oak trunks they were generated with. As in Minecraft, any
+planks make sticks, crafting tables, chests, bowls, beds, boats, wooden tools, shields,
+bookshelves and the wooden workstations, and any log makes a smoker or a campfire. A
+door is two planks wide and three high in the grid.
+
 **Changed to Minecraft's recipes**: iron and gold blocks take nine ingots (and give
 them back); stone bricks are made from stone; four sand make one sandstone; one
 cobblestone and a plant fibre make mossy cobblestone. **Clay** breaks into four clay

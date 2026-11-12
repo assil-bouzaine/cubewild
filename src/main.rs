@@ -2104,6 +2104,35 @@ impl Game {
                 }
                 self.world.set_block_bg(x, y0, z, catalogue::block(from + i));
             }
+            // and each wood's pieces in a row of their own: stairs, slab, gate, door,
+            // trapdoor, sign
+            let z = oz + 9 + ((catalogue::DEFS.len() - from + 12) / 13) as i32 * 2;
+            for w in 0..5usize {
+                let x0 = ox - 3 + w as i32 * 7;
+                for dx in 0..7 {
+                    for dz in 0..2 {
+                        self.world.set_block_bg(x0 + dx, y0 - 1, z + dz, STONE);
+                        for y in y0..y0 + 3 {
+                            self.world.set_block_bg(x0 + dx, y, z + dz, AIR);
+                        }
+                    }
+                }
+                let at = |dx: i32| (x0 + dx, z);
+                for (dx, b) in [
+                    (0, building::stairs(SHAPE_FULL.iter().position(|&m| m == building::planks_of(w)).unwrap() as Block, 2, false)),
+                    (1, items::block_of(items::wood_item(w, items::Piece::Slab))),
+                    (2, building::placed_gate(w, 2)),
+                    (4, building::trap_block(w) + 2),
+                    (5, building::sign_block(w, 2)),
+                    (6, building::planks_of(w)),
+                ] {
+                    let (x, z) = at(dx);
+                    self.world.set_block_bg(x, y0, z, b);
+                }
+                let (x, z) = at(3);
+                self.world.set_block_bg(x, y0, z, building::door_base(w) + 2);
+                self.world.set_block_bg(x, y0 + 1, z, building::door_base(w) + 2 + DOOR_UPPER);
+            }
         }
         let p = &mut self.player;
         if inside {

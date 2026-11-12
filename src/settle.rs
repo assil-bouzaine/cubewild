@@ -324,7 +324,7 @@ fn tree(get: &dyn Fn(IVec3) -> Block, at: IVec3, sapling: Block, rng: &mut Rng) 
                     }
                 }
             }
-            (LOG, th)
+            (crate::catalogue::block(crate::catalogue::log_row(0)), th)
         }
         // jungle: a tall trunk and a broad crown
         3 => {
@@ -338,7 +338,7 @@ fn tree(get: &dyn Fn(IVec3) -> Block, at: IVec3, sapling: Block, rng: &mut Rng) 
                     }
                 }
             }
-            (LOG, th)
+            (crate::catalogue::block(crate::catalogue::log_row(1)), th)
         }
         // acacia: a bare trunk under a wide flat crown
         _ => {
@@ -354,7 +354,7 @@ fn tree(get: &dyn Fn(IVec3) -> Block, at: IVec3, sapling: Block, rng: &mut Rng) 
                     }
                 }
             }
-            (LOG, th)
+            (crate::catalogue::block(crate::catalogue::log_row(2)), th)
         }
     };
     // the trunk needs a clear way up; leaves only fill empty space

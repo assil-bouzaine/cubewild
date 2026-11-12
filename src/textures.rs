@@ -21,7 +21,7 @@ pub const NEW_TEX: usize = ARM_TEX + 2;
 /// chest halves, the latch, beds, and the chest and bed icons (see `furniture_pixel`)
 pub const FURNITURE_TEX: usize = NEW_TEX + 15;
 /// icons of the items added after the furniture (see `items::icon`)
-pub const MORE_ICONS: usize = FURNITURE_TEX + 19;
+pub const MORE_ICONS: usize = FURNITURE_TEX + 20;
 pub const MORE_ICON_COUNT: usize = 64;
 /// the block catalogue's textures (see `catalogue::pixel`)
 pub const CAT_TEX: usize = MORE_ICONS + MORE_ICON_COUNT;
@@ -488,38 +488,8 @@ fn pixel(layer: usize, x: i32, y: i32) -> [u8; 4] {
         56..=63 => {
             // doors: 56 oak top, 57 oak bottom, 58/59 birch; 60..63 the same mirrored
             let k = layer - 56;
-            let x = if k >= 4 { 15 - x } else { x };
             let wood = if k % 4 < 2 { [178.0, 140.0, 86.0] } else { [218.0, 200.0, 152.0] };
-            let grain = 0.94 + h(56 + (k % 4) as u32, x / 2, y) * 0.1;
-            let frame = x == 0 || x == 15;
-            if k % 2 == 0 {
-                // top half: four small lights
-                let glass = matches!(x, 3..=6 | 9..=12) && matches!(y, 3..=6 | 8..=11);
-                let rim = matches!(x, 2..=13) && matches!(y, 2..=12);
-                if glass {
-                    CLEAR
-                } else if frame || y == 0 {
-                    shade(wood, 0.66)
-                } else if rim {
-                    shade(wood, 0.78)
-                } else {
-                    shade(wood, grain)
-                }
-            } else {
-                let panel = matches!(x, 3..=12) && matches!(y, 5..=12);
-                let edge = panel && (x == 3 || x == 12 || y == 5 || y == 12);
-                if matches!(x, 12 | 13) && matches!(y, 1 | 2) {
-                    [58, 56, 62, 255] // knob
-                } else if frame || y == 15 {
-                    shade(wood, 0.66)
-                } else if edge {
-                    shade(wood, 0.72)
-                } else if panel {
-                    shade(wood, grain * 0.9)
-                } else {
-                    shade(wood, grain)
-                }
-            }
+            door_pixel(wood, k % 2 == 0, k >= 4, 56 + (k % 4) as u32, x, y)
         }
         l if l >= CAT_TEX => crate::catalogue::pixel(l - CAT_TEX, x, y),
         l if l >= MORE_ICONS => crate::icons::pixel(l - MORE_ICONS, x, y),
@@ -649,6 +619,56 @@ fn biome_pixel(layer: usize, x: i32, y: i32) -> [u8; 4] {
     }
 }
 
+/// A wooden door half (`top`: the half with four small lights), its knob away from the
+/// hinge (`mirror` flips it). Any wood's colour.
+pub fn door_pixel(wood: [f32; 3], top: bool, mirror: bool, salt: u32, x: i32, y: i32) -> [u8; 4] {
+    let x = if mirror { 15 - x } else { x };
+    let grain = 0.94 + h(salt, x / 2, y) * 0.1;
+    let frame = x == 0 || x == 15;
+    if top {
+        let glass = matches!(x, 3..=6 | 9..=12) && matches!(y, 3..=6 | 8..=11);
+        let rim = matches!(x, 2..=13) && matches!(y, 2..=12);
+        if glass {
+            CLEAR
+        } else if frame || y == 0 {
+            shade(wood, 0.66)
+        } else if rim {
+            shade(wood, 0.78)
+        } else {
+            shade(wood, grain)
+        }
+    } else {
+        let panel = matches!(x, 3..=12) && matches!(y, 5..=12);
+        let edge = panel && (x == 3 || x == 12 || y == 5 || y == 12);
+        if matches!(x, 12 | 13) && matches!(y, 1 | 2) {
+            [58, 56, 62, 255] // knob
+        } else if frame || y == 15 {
+            shade(wood, 0.66)
+        } else if edge {
+            shade(wood, 0.72)
+        } else if panel {
+            shade(wood, grain * 0.9)
+        } else {
+            shade(wood, grain)
+        }
+    }
+}
+
+/// A trapdoor of any wood: a framed hatch with slits and iron bands.
+pub fn trapdoor_pixel(wood: [f32; 3], x: i32, y: i32) -> [u8; 4] {
+    let n = h(703, x, y);
+    let frame = x <= 1 || x >= 14 || y <= 1 || y >= 14;
+    if !frame && matches!(x, 4 | 5 | 10 | 11) && matches!(y, 4..=6 | 9..=11) {
+        CLEAR
+    } else if frame && (matches!(x, 3 | 12) || matches!(y, 3 | 12)) {
+        [92, 94, 104, 255]
+    } else if frame {
+        shade(wood, 0.7 + n * 0.08)
+    } else {
+        shade(wood, 0.9 + h(703, 0, y / 3) * 0.1 + n * 0.06)
+    }
+}
+
 /// A chest's side: boards with a dark rim and the lid seam. A chest is drawn a pixel
 /// narrower than its cell on each side and two pixels short of its top, so the rim
 /// lies one pixel in. `lo`/`hi`: draw the rim at the low/high end of u (a double
@@ -752,6 +772,8 @@ fn furniture_pixel(k: usize, x: i32, y: i32) -> [u8; 4] {
                 shade([150.0, 34.0, 44.0], if e == 2 { 0.75 } else { 0.92 + h(724, x, y) * 0.1 })
             }
         }
+        // the birch trapdoor
+        19 => trapdoor_pixel([218.0, 200.0, 152.0], x, y),
         // the bed's icon: a bed from the side, pillow at the left
         _ => {
             let wood = [150.0, 108.0, 60.0];
@@ -787,19 +809,8 @@ fn extra_pixel(k: usize, x: i32, y: i32) -> [u8; 4] {
                 CLEAR
             }
         }
-        3 => {
-            // trapdoor: a framed hatch with slits and iron bands
-            let frame = x <= 1 || x >= 14 || y <= 1 || y >= 14;
-            if !frame && matches!(x, 4 | 5 | 10 | 11) && matches!(y, 4..=6 | 9..=11) {
-                CLEAR
-            } else if frame && (matches!(x, 3 | 12) || matches!(y, 3 | 12)) {
-                [92, 94, 104, 255]
-            } else if frame {
-                shade(wood, 0.7 + n * 0.08)
-            } else {
-                shade(wood, 0.9 + h(703, 0, y / 3) * 0.1 + n * 0.06)
-            }
-        }
+        // trapdoor
+        3 => trapdoor_pixel(wood, x, y),
         4..=7 => {
             // slab: the lower half of the block, with a lit top edge
             match y {

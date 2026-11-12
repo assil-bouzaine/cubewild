@@ -335,7 +335,11 @@ enum Tree {
 }
 
 /// Makes a chunk; `villages` adds those of generator 3 (see `GEN_LATEST`).
-pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool) -> ChunkData {
+/// `woods`: spruce, jungle and acacia trees have their own logs (generator 4 on;
+/// older worlds keep oak trunks, so their unedited land looks as it always has).
+pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool, woods: bool) -> ChunkData {
+    use crate::catalogue::{block, log_row};
+    let wood_log = |w: usize| if woods { block(log_row(w)) } else { LOG };
     let mut blocks = vec![AIR; VOL].into_boxed_slice();
     // columns of the chunk plus an apron: 3 for the trees that reach across the border,
     // and one more for the slope under them
@@ -580,7 +584,7 @@ pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool) -> ChunkData {
                         }
                     }
                     for dy in 1..=th {
-                        put(tx, h + dy, tz, LOG, true);
+                        put(tx, h + dy, tz, wood_log(0), true);
                     }
                 }
                 Tree::Oak | Tree::Birch => {
@@ -620,7 +624,7 @@ pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool) -> ChunkData {
                         }
                     }
                     for dy in 1..=th {
-                        put(tx, h + dy, tz, LOG, true);
+                        put(tx, h + dy, tz, wood_log(2), true);
                     }
                 }
                 Tree::Jungle => {
@@ -636,7 +640,7 @@ pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool) -> ChunkData {
                         }
                     }
                     for dy in 1..=th {
-                        put(tx, h + dy, tz, LOG, true);
+                        put(tx, h + dy, tz, wood_log(1), true);
                     }
                 }
                 Tree::Bush => {
@@ -649,7 +653,7 @@ pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool) -> ChunkData {
                             }
                         }
                     }
-                    put(tx, h + 1, tz, LOG, true);
+                    put(tx, h + 1, tz, wood_log(1), true);
                 }
                 Tree::Swamp => {
                     // a squat oak with a wide drooping crown, often standing in the water
@@ -811,11 +815,11 @@ mod tests {
             for k in 0..40 {
                 let r = hash2(seed, k, 3);
                 let (cx, cz) = ((r % 256) as i32 - 128, ((r >> 8) % 256) as i32 - 128);
-                let ch = generate(seed, cx, cz, true);
+                let ch = generate(seed, cx, cz, true, true);
                 // (a village may hold water above the sea: its well, the ditches of its fields)
                 let village = !crate::village::near(seed, cx * CW, cz * CW, cx * CW + 15, cz * CW + 15, crate::village::REACH).is_empty();
                 if k == 0 {
-                    assert!(ch.blocks == generate(seed, cx, cz, true).blocks);
+                    assert!(ch.blocks == generate(seed, cx, cz, true, true).blocks);
                 }
                 for z in 0..CW {
                     for x in 0..CW {
@@ -829,7 +833,7 @@ mod tests {
                             if b == WATER || b == ICE {
                                 assert!(under != AIR && (y <= GSEA || b == ICE || village), "seed {seed}: water at {x} {y} {z}");
                             }
-                            if (b == LOG || b == BIRCH_LOG) && y == h + 1 {
+                            if is_log(b) && y == h + 1 {
                                 assert!(under != AIR && under != WATER, "seed {seed}: tree in the air at {x} {y} {z}");
                                 trees += 1;
                             }
@@ -887,7 +891,7 @@ mod tests {
         let mut air = 0usize;
         for cz in 0..8 {
             for cx in 0..8 {
-                air += generate(2026, cx * 9, cz * 9, true).blocks.iter().filter(|b| **b == AIR).count();
+                air += generate(2026, cx * 9, cz * 9, true, true).blocks.iter().filter(|b| **b == AIR).count();
             }
         }
         println!("generate v2: {:.2} ms a chunk ({air})", t.elapsed().as_secs_f64() * 1000.0 / 64.0);
@@ -967,4 +971,26 @@ mod tests {
             println!("{:>14?} {:5.1}%", unsafe { std::mem::transmute::<u8, Biome>(b as u8) }, all[b] as f32 * 100.0 / total as f32);
         }
     }
+
+#[cfg(test)]
+mod wood_tests {
+    use super::*;
+    /// Generator 4 changes nothing but the trunks of spruce, jungle and acacia trees, so
+    /// older worlds (which keep generator 3) keep their land exactly.
+    #[test]
+    fn new_woods_only_change_trunks() {
+        let mut changed = 0;
+        for (cx, cz) in [(0, 0), (40, -12), (-75, 30), (120, 120), (-300, -40), (9, 210), (260, -180)] {
+            let (old, new) = (generate(4242, cx, cz, true, false), generate(4242, cx, cz, true, true));
+            for (&a, &b) in old.blocks.iter().zip(new.blocks.iter()) {
+                if a != b {
+                    assert!(a == LOG && crate::catalogue::is_wood_log(b), "{a} became {b}");
+                    changed += 1;
+                }
+            }
+        }
+        assert!(changed > 0, "some spruce, jungle or acacia trees in the sample");
+    }
+}
+
 }

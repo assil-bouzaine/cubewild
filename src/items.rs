@@ -141,6 +141,73 @@ pub const PLAIN_END: Item = 236;
 pub const MORE_SLAB_ITEM: Item = 240;
 pub const MORE_STAIRS_ITEM: Item = 252;
 pub const MORE_SHAPES_END: Item = 261;
+/// spruce, jungle and acacia pieces: + 6 x (wood - 2), then the `Piece` order; then the
+/// birch trapdoor and birch sign
+pub const WOOD_ITEM: Item = 261;
+pub const BIRCH_TRAPDOOR: Item = 279;
+pub const BIRCH_SIGN: Item = 280;
+pub const WOOD_ITEM_END: Item = 281;
+
+/// The wooden pieces made from each wood's planks.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Piece {
+    Stairs,
+    Slab,
+    Gate,
+    Door,
+    Trapdoor,
+    Sign,
+}
+const PIECES: [Piece; 6] = [Piece::Stairs, Piece::Slab, Piece::Gate, Piece::Door, Piece::Trapdoor, Piece::Sign];
+#[cfg(test)]
+pub const PIECES_ALL: [Piece; 6] = PIECES;
+
+/// Which wood (0 oak .. 4 acacia, see `building::WOOD_NAMES`) and piece an item is.
+pub fn wood_piece(i: Item) -> Option<(usize, Piece)> {
+    Some(match i {
+        STAIRS => (0, Piece::Stairs),
+        i if i == STAIRS + 1 => (1, Piece::Stairs),
+        SLAB => (0, Piece::Slab),
+        i if i == SLAB + 1 => (1, Piece::Slab),
+        OAK_GATE => (0, Piece::Gate),
+        BIRCH_GATE => (1, Piece::Gate),
+        OAK_DOOR => (0, Piece::Door),
+        BIRCH_DOOR => (1, Piece::Door),
+        TRAPDOOR => (0, Piece::Trapdoor),
+        BIRCH_TRAPDOOR => (1, Piece::Trapdoor),
+        SIGN_ITEM => (0, Piece::Sign),
+        BIRCH_SIGN => (1, Piece::Sign),
+        i if (WOOD_ITEM..BIRCH_TRAPDOOR).contains(&i) => (2 + (i - WOOD_ITEM) as usize / 6, PIECES[(i - WOOD_ITEM) as usize % 6]),
+        _ => return None,
+    })
+}
+/// The item of a wood's piece.
+pub fn wood_item(wood: usize, piece: Piece) -> Item {
+    match (wood, piece) {
+        (0 | 1, Piece::Stairs) => STAIRS + wood as Item,
+        (0 | 1, Piece::Slab) => SLAB + wood as Item,
+        (0 | 1, Piece::Gate) => OAK_GATE + wood as Item,
+        (0 | 1, Piece::Door) => OAK_DOOR + wood as Item,
+        (0, Piece::Trapdoor) => TRAPDOOR,
+        (1, Piece::Trapdoor) => BIRCH_TRAPDOOR,
+        (0, Piece::Sign) => SIGN_ITEM,
+        (1, Piece::Sign) => BIRCH_SIGN,
+        (w, p) => WOOD_ITEM + (w as Item - 2) * 6 + PIECES.iter().position(|&q| q == p).unwrap() as Item,
+    }
+}
+fn wood_piece_name(i: Item) -> Option<&'static str> {
+    const NAMES: [[&str; 6]; 3] = [
+        ["Spruce Stairs", "Spruce Slab", "Spruce Fence Gate", "Spruce Door", "Spruce Trapdoor", "Spruce Sign"],
+        ["Jungle Stairs", "Jungle Slab", "Jungle Fence Gate", "Jungle Door", "Jungle Trapdoor", "Jungle Sign"],
+        ["Acacia Stairs", "Acacia Slab", "Acacia Fence Gate", "Acacia Door", "Acacia Trapdoor", "Acacia Sign"],
+    ];
+    match i {
+        BIRCH_TRAPDOOR => Some("Birch Trapdoor"),
+        BIRCH_SIGN => Some("Birch Sign"),
+        i if (WOOD_ITEM..BIRCH_TRAPDOOR).contains(&i) => Some(NAMES[(i - WOOD_ITEM) as usize / 6][(i - WOOD_ITEM) as usize % 6]),
+        _ => None,
+    }
+}
 const MORE_SLAB_NAMES: [&str; 12] = ["Stone Slab", "Mossy Cobblestone Slab", "Mossy Stone Brick Slab", "Red Sandstone Slab", "Smooth Sandstone Slab",
     "Smooth Red Sandstone Slab", "Polished Slate Slab", "Slate Brick Slab", "Slate Tile Slab", "Smooth Stone Slab", "Cut Sandstone Slab", "Cut Red Sandstone Slab"];
 const MORE_STAIR_NAMES: [&str; 9] = ["Stone Stairs", "Mossy Cobblestone Stairs", "Mossy Stone Brick Stairs", "Red Sandstone Stairs", "Smooth Sandstone Stairs",
@@ -162,6 +229,11 @@ pub fn is_block(i: Item) -> bool {
     if crate::catalogue::row_of_item(i).is_some() || i == REED_ITEM || (MORE_SLAB_ITEM..MORE_SHAPES_END).contains(&i) {
         return true;
     }
+    // (the new woods' doors and trapdoors are items placed their own way, as oak's are;
+    // their stairs, slabs, gates and signs are blocks)
+    if (WOOD_ITEM..WOOD_ITEM_END).contains(&i) {
+        return !matches!(wood_piece(i), Some((_, Piece::Door | Piece::Trapdoor)));
+    }
     (OAK_GATE..BOWL).contains(&i) || (ANVIL_ITEM..=ENCHANTING_ITEM).contains(&i) || (i != AIR && i < 64) || is_wool_item(i) || (DEEP_ITEM..DEEP_ITEM + DEEP_BLOCKS).contains(&i) || is_extra_item(i) || is_sapling_item(i)
 }
 
@@ -178,8 +250,8 @@ pub fn is_wool_item(i: Item) -> bool {
 }
 
 /// The block an item puts down (most block items are their own block).
-pub fn slab_material(i:Item)->Option<Block> {if (SLAB..SLAB_END).contains(&i) {Some(i-SLAB)} else if (EXTRA_SLAB..EXTRA_SLAB+4).contains(&i) {Some(4+i-EXTRA_SLAB)} else if (MORE_SLAB_ITEM..MORE_STAIRS_ITEM).contains(&i) {Some(8+i-MORE_SLAB_ITEM)} else {None}}
-pub fn stair_material(i:Item)->Option<Block> {if (STAIRS..STAIRS+4).contains(&i) {Some(i-STAIRS)} else if (EXTRA_STAIRS..EXTRA_STAIRS+4).contains(&i) {Some(4+i-EXTRA_STAIRS)} else if (MORE_STAIRS_ITEM..MORE_SHAPES_END).contains(&i) {Some(8+i-MORE_STAIRS_ITEM)} else {None}}
+pub fn slab_material(i:Item)->Option<Block> {if (SLAB..SLAB_END).contains(&i) {Some(i-SLAB)} else if (EXTRA_SLAB..EXTRA_SLAB+4).contains(&i) {Some(4+i-EXTRA_SLAB)} else if (MORE_SLAB_ITEM..MORE_STAIRS_ITEM).contains(&i) {Some(8+i-MORE_SLAB_ITEM)} else if let Some((w, Piece::Slab)) = wood_piece(i).filter(|w| w.0 >= 2) {Some(18 + w as Block)} else {None}}
+pub fn stair_material(i:Item)->Option<Block> {if (STAIRS..STAIRS+4).contains(&i) {Some(i-STAIRS)} else if (EXTRA_STAIRS..EXTRA_STAIRS+4).contains(&i) {Some(4+i-EXTRA_STAIRS)} else if (MORE_STAIRS_ITEM..MORE_SHAPES_END).contains(&i) {Some(8+i-MORE_STAIRS_ITEM)} else if let Some((w, Piece::Stairs)) = wood_piece(i).filter(|w| w.0 >= 2) {Some(18 + w as Block)} else {None}}
 pub fn block_of(i: Item) -> Block {
     if let Some(r) = crate::catalogue::row_of_item(i) {
         return crate::catalogue::block(r);
@@ -189,8 +261,13 @@ pub fn block_of(i: Item) -> Block {
     }
     if let Some(mat)=slab_material(i) {return crate::building::slab(mat,false);}
     if let Some(mat)=stair_material(i) {return crate::building::stairs(mat,0,false);}
-    if i==OAK_GATE || i==BIRCH_GATE {return crate::building::FENCE_GATE+(i-OAK_GATE)*4;}
-    if i==SIGN_ITEM {return crate::building::SIGN;}
+    match wood_piece(i) {
+        Some((w, Piece::Gate)) => return crate::building::placed_gate(w, 1),
+        Some((w, Piece::Sign)) => return crate::building::sign_block(w, 0),
+        Some((w, Piece::Trapdoor)) => return crate::building::trap_block(w),
+        Some((w, Piece::Door)) => return crate::building::door_base(w),
+        _ => {}
+    }
     if i == ANVIL_ITEM { ANVIL } else if i == ENCHANTING_ITEM { ENCHANTING_TABLE } else if is_wool_item(i) {
         WOOL + (i - WOOL_ITEM)
     } else if (DEEP_ITEM..DEEP_ITEM + DEEP_BLOCKS).contains(&i) {
@@ -214,6 +291,7 @@ pub fn valid(i: Item) -> bool {
         || (ICE..=FLOWER_BLUE).contains(&i)
         || (64..PLAIN_END).contains(&i)
         || (MORE_SLAB_ITEM..MORE_SHAPES_END).contains(&i)
+        || (WOOD_ITEM..WOOD_ITEM_END).contains(&i)
         || crate::catalogue::row_of_item(i).is_some_and(crate::catalogue::has_item)
 }
 
@@ -223,6 +301,9 @@ pub fn name(i: Item) -> &'static str {
     }
     if (MORE_SLAB_ITEM..MORE_STAIRS_ITEM).contains(&i) {
         return MORE_SLAB_NAMES[(i - MORE_SLAB_ITEM) as usize];
+    }
+    if let Some(n) = wood_piece_name(i) {
+        return n;
     }
     if (MORE_STAIRS_ITEM..MORE_SHAPES_END).contains(&i) {
         return MORE_STAIR_NAMES[(i - MORE_STAIRS_ITEM) as usize];
@@ -282,7 +363,7 @@ pub fn name(i: Item) -> &'static str {
         BED => "Bed",
         BIRCH_LOG => "Birch Log",
         BIRCH_LEAVES => "Birch Leaves",
-        PINE_LEAVES => "Pine Needles",
+        PINE_LEAVES => "Spruce Leaves",
         GRAVEL => "Gravel",
         CLAY => "Clay",
         GOLD_ORE => "Gold Ore",
@@ -381,7 +462,7 @@ pub fn name(i: Item) -> &'static str {
         PYRE_INGOT => "Pyre Ingot",
         i if i == SAPLING_ITEM => "Oak Sapling",
         i if i == SAPLING_ITEM + 1 => "Birch Sapling",
-        i if i == SAPLING_ITEM + 2 => "Pine Sapling",
+        i if i == SAPLING_ITEM + 2 => "Spruce Sapling",
         i if i == SAPLING_ITEM + 3 => "Jungle Sapling",
         i if i == SAPLING_ITEM + 4 => "Acacia Sapling",
         LAVA_BUCKET => "Lava Bucket",
@@ -455,6 +536,13 @@ pub fn name(i: Item) -> &'static str {
 /// Texture-array layer used as the item's icon.
 pub fn icon(i: Item) -> u32 {
     if crate::catalogue::row_of_item(i).is_some() { return crate::catalogue::icon(i); }
+    if let Some((w, p)) = wood_piece(i).filter(|&(w, p)| w >= 2 || (w == 1 && matches!(p, Piece::Trapdoor | Piece::Sign))) {
+        return match p {
+            Piece::Door => tex_for(crate::building::door_base(w) + DOOR_UPPER, 4),
+            Piece::Trapdoor => tex_for(crate::building::trap_block(w), 2),
+            _ => tex_for(crate::building::planks_of(w), 0),
+        };
+    }
     if (BOWL..PLAIN_END).contains(&i) { return (crate::textures::MORE_ICONS + (i - BOWL) as usize) as u32; }
     if i == CHEST { return CHEST_ICON_LAYER; }
     if i == BED { return BED_ICON_LAYER; }
@@ -658,6 +746,9 @@ pub fn max_stack(i: Item) -> u32 {
 
 /// Short type label shown in tooltips.
 pub fn kind(i: Item) -> &'static str {
+    if let Some((_, p)) = wood_piece(i).filter(|_| (WOOD_ITEM..WOOD_ITEM_END).contains(&i)) {
+        return if matches!(p, Piece::Stairs | Piece::Slab) { "Block" } else { "Utility block" };
+    }
     if let Some(r) = crate::catalogue::row_of_item(i) {
         return if crate::catalogue::DEFS[r].cat == Cat::Utility { "Utility block" } else { "Block" };
     }
@@ -696,6 +787,13 @@ pub fn desc(i: Item) -> &'static str {
     }
     if slab_material(i).is_some() {
         return "Half a block high. Two of a kind make a full block again.";
+    }
+    match wood_piece(i) {
+        Some((_, Piece::Gate)) => return "Right click to open or close. Keeps animals inside a fence.",
+        Some((_, Piece::Door)) => return "Right click to open or close. Monsters cannot open it.",
+        Some((_, Piece::Trapdoor)) => return "A hatch for a hole in the floor. Right click to open or close.",
+        Some((_, Piece::Sign)) => return "Place to write; look to read; right click to edit.",
+        _ => {}
     }
     if stair_material(i).is_some() {
         return "Walk up without jumping. Place high for upside down.";
@@ -860,18 +958,15 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Materials, (PLANKS, 4), &[(LOG, 1)], AIR),
     r(Cat::Materials, (BIRCH_PLANKS, 4), &[(BIRCH_LOG, 1)], AIR),
     r(Cat::Materials, (STICK, 4), &[(PLANKS, 2)], AIR),
-    r(Cat::Materials, (STICK, 4), &[(BIRCH_PLANKS, 2)], AIR),
     r(Cat::Materials, (FLINT, 1), &[(GRAVEL, 3)], AIR),
     r(Cat::Utility, (WORKBENCH, 1), &[(PLANKS, 4)], AIR),
     r(Cat::Utility, (TORCH, 4), &[(COAL, 1), (STICK, 1)], AIR),
     r(Cat::Utility, (FURNACE, 1), &[(COBBLE, 8)], WORKBENCH),
     r(Cat::Utility, (BED, 1), &[(CLOTH, 3), (PLANKS, 3)], WORKBENCH),
-    r(Cat::Utility, (BED, 1), &[(CLOTH, 3), (BIRCH_PLANKS, 3)], WORKBENCH),
     r(Cat::Utility, (BED, 1), &[(WOOL_ITEM + 13, 3), (PLANKS, 3)], WORKBENCH),
     r(Cat::Utility, (BED, 1), &[(PLANKS, 3), (HIDE, 3)], WORKBENCH),
     r(Cat::Utility, (LAMP, 1), &[(CRYSTAL, 1), (GLASS, 1)], WORKBENCH),
     r(Cat::Utility, (CHEST, 1), &[(PLANKS, 8)], WORKBENCH),
-    r(Cat::Utility, (CHEST, 1), &[(BIRCH_PLANKS, 8)], WORKBENCH),
     r(Cat::Utility, (LADDER, 3), &[(STICK, 7)], WORKBENCH),
     r(Cat::Utility, (TRAPDOOR, 2), &[(PLANKS, 6)], WORKBENCH),
     r(Cat::Utility, (BUCKET, 1), &[(IRON_INGOT, 3)], WORKBENCH),
@@ -893,7 +988,6 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Materials, (GOLD_INGOT, 1), &[(GOLD_NUGGET, 9)], WORKBENCH),
     r(Cat::Building, (SNOW, 1), &[(SNOWBALL, 4)], AIR),
     r(Cat::Utility, (BOWL, 4), &[(PLANKS, 3)], WORKBENCH),
-    r(Cat::Utility, (BOWL, 4), &[(BIRCH_PLANKS, 3)], WORKBENCH),
     r(Cat::Materials, (DYE + 13, 1), &[(CACTUS, 1)], AIR),
     r(Cat::Materials, (DYE + 12, 1), &[(MUSHROOM, 1)], AIR),
     r(Cat::Materials, (DYE + 1, 2), &[(DYE + 14, 1), (DYE + 4, 1)], AIR),
@@ -920,7 +1014,6 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building, (WOOL_ITEM + 12, 1), &[(CLOTH, 1), (DYE + 13, 1)], AIR),
     r(Cat::Building, (WOOL_ITEM + 13, 1), &[(CLOTH, 1), (DYE + 14, 1)], AIR),
     r(Cat::Building, (WOOL_ITEM + 14, 1), &[(CLOTH, 1), (DYE + 15, 1)], AIR),
-    r(Cat::Utility, (BOAT, 1), &[(BIRCH_PLANKS, 5)], WORKBENCH),
     r(Cat::Utility, (COMPASS, 1), &[(IRON_INGOT, 4), (CRYSTAL, 1)], WORKBENCH),
     r(Cat::Utility, (CLOCK, 1), &[(GOLD_INGOT, 4), (CRYSTAL, 1)], WORKBENCH),
     r(Cat::Tools, (WOOD_PICK, 1), &[(PLANKS, 3), (STICK, 2)], AIR),
@@ -1038,7 +1131,6 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building, (cat(c::BONE_BLOCK), 1), &[(BONE_MEAL, 9)], WORKBENCH),
     r(Cat::Materials, (BONE_MEAL, 9), &[(cat(c::BONE_BLOCK), 1)], AIR),
     r(Cat::Building, (cat(c::BOOKSHELF), 1), &[(PLANKS, 6), (BOOK, 3)], WORKBENCH),
-    r(Cat::Building, (cat(c::BOOKSHELF), 1), &[(BIRCH_PLANKS, 6), (BOOK, 3)], WORKBENCH),
     r(Cat::Building, (cat(c::CHISELED_STONE_BRICKS), 1), &[(SLAB + 3, 2)], AIR),
     r(Cat::Building, (cat(c::MOSSY_STONE_BRICKS), 1), &[(STONE_BRICK, 1), (FIBER, 1)], AIR),
     r(Cat::Building, (cat(c::CUT_SANDSTONE), 4), &[(SANDSTONE, 4)], AIR),
@@ -1068,7 +1160,6 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building, (tc(14), 8), &[(TERRACOTTA, 8), (DYE + 14, 1)], WORKBENCH),
     r(Cat::Building, (tc(15), 8), &[(TERRACOTTA, 8), (DYE + 15, 1)], WORKBENCH),
     r(Cat::Utility, (cat(c::SMOKER), 1), &[(FURNACE, 1), (LOG, 4)], WORKBENCH),
-    r(Cat::Utility, (cat(c::SMOKER), 1), &[(FURNACE, 1), (BIRCH_LOG, 4)], WORKBENCH),
     r(Cat::Utility, (cat(c::BLAST_FURNACE), 1), &[(IRON_INGOT, 5), (FURNACE, 1), (cat(c::SMOOTH_STONE), 3)], WORKBENCH),
     r(Cat::Utility, (cat(c::SMITHING_TABLE), 1), &[(IRON_INGOT, 2), (PLANKS, 4)], WORKBENCH),
     r(Cat::Utility, (cat(c::STONECUTTER), 1), &[(IRON_INGOT, 1), (STONE, 3)], WORKBENCH),
@@ -1106,7 +1197,6 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building, (cat(c::SLATE_TILES), 1), &[(cat(c::SLATE_BRICKS), 1)], STONECUTTER),
     // ---- phase 2: campfires, bars, stained glass, carpets and walls
     r(Cat::Utility, (cat(c::CAMPFIRE), 1), &[(STICK, 3), (COAL, 1), (LOG, 3)], WORKBENCH),
-    r(Cat::Utility, (cat(c::CAMPFIRE), 1), &[(STICK, 3), (COAL, 1), (BIRCH_LOG, 3)], WORKBENCH),
     r(Cat::Utility, (cat(c::SOUL_CAMPFIRE), 1), &[(STICK, 3), (DEEP_ITEM + 2, 1), (LOG, 3)], WORKBENCH),
     r(Cat::Building, (cat(c::IRON_BARS), 16), &[(IRON_INGOT, 6)], WORKBENCH),
     r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 0), 8), &[(GLASS, 8), (DYE + 0, 1)], WORKBENCH),
@@ -1254,6 +1344,33 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building, (cat(c::POWDER_ROW + 13), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 13, 1)], AIR),
     r(Cat::Building, (cat(c::POWDER_ROW + 14), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 14, 1)], AIR),
     r(Cat::Building, (cat(c::POWDER_ROW + 15), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 15, 1)], AIR),
+    // ---- phase 4: spruce, jungle and acacia (any-planks recipes take them too)
+    r(Cat::Materials, (cat(c::planks_row(0)), 4), &[(cat(c::log_row(0)), 1)], AIR),
+    r(Cat::Building, (WOOD_ITEM + 0, 4), &[(cat(c::planks_row(0)), 6)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 0 + 1, 6), &[(cat(c::planks_row(0)), 3)], WORKBENCH),
+    r(Cat::Building, (cat(c::fence_row(0)), 3), &[(cat(c::planks_row(0)), 4), (STICK, 2)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 0 + 2, 1), &[(STICK, 4), (cat(c::planks_row(0)), 2)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 0 + 3, 3), &[(cat(c::planks_row(0)), 6)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 0 + 4, 2), &[(cat(c::planks_row(0)), 6)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 0 + 5, 3), &[(cat(c::planks_row(0)), 6), (STICK, 1)], WORKBENCH),
+    r(Cat::Materials, (cat(c::planks_row(1)), 4), &[(cat(c::log_row(1)), 1)], AIR),
+    r(Cat::Building, (WOOD_ITEM + 6, 4), &[(cat(c::planks_row(1)), 6)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 6 + 1, 6), &[(cat(c::planks_row(1)), 3)], WORKBENCH),
+    r(Cat::Building, (cat(c::fence_row(1)), 3), &[(cat(c::planks_row(1)), 4), (STICK, 2)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 6 + 2, 1), &[(STICK, 4), (cat(c::planks_row(1)), 2)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 6 + 3, 3), &[(cat(c::planks_row(1)), 6)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 6 + 4, 2), &[(cat(c::planks_row(1)), 6)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 6 + 5, 3), &[(cat(c::planks_row(1)), 6), (STICK, 1)], WORKBENCH),
+    r(Cat::Materials, (cat(c::planks_row(2)), 4), &[(cat(c::log_row(2)), 1)], AIR),
+    r(Cat::Building, (WOOD_ITEM + 12, 4), &[(cat(c::planks_row(2)), 6)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 12 + 1, 6), &[(cat(c::planks_row(2)), 3)], WORKBENCH),
+    r(Cat::Building, (cat(c::fence_row(2)), 3), &[(cat(c::planks_row(2)), 4), (STICK, 2)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 12 + 2, 1), &[(STICK, 4), (cat(c::planks_row(2)), 2)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 12 + 3, 3), &[(cat(c::planks_row(2)), 6)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 12 + 4, 2), &[(cat(c::planks_row(2)), 6)], WORKBENCH),
+    r(Cat::Building, (WOOD_ITEM + 12 + 5, 3), &[(cat(c::planks_row(2)), 6), (STICK, 1)], WORKBENCH),
+    r(Cat::Building, (BIRCH_TRAPDOOR, 2), &[(BIRCH_PLANKS, 6)], WORKBENCH),
+    r(Cat::Building, (BIRCH_SIGN, 3), &[(BIRCH_PLANKS, 6), (STICK, 1)], WORKBENCH),
 ];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -1504,7 +1621,32 @@ impl Inventory {
     }
 
     pub fn can_craft(&self, r: &Recipe) -> bool {
-        r.ins.iter().all(|&(i, n)| self.count(i) >= n)
+        r.ins.iter().all(|&(i, n)| self.count_for(r, i) >= n)
+    }
+
+    /// How many of an ingredient the bag holds, counting every wood where the recipe
+    /// takes any planks or any log.
+    fn count_for(&self, r: &Recipe, i: Item) -> u32 {
+        self.slots[..BAG_END].iter().filter(|s| !s.is_empty() && crate::crafting::takes(r.out.0, i, s.item)).map(|s| s.n).sum()
+    }
+
+    /// Takes `n` of an ingredient as `count_for` counts it.
+    fn take_for(&mut self, r: &Recipe, i: Item, mut n: u32) -> bool {
+        if self.count_for(r, i) < n {
+            return false;
+        }
+        for slot in (0..BAG_END).rev() {
+            let s = &mut self.slots[slot];
+            if n > 0 && !s.is_empty() && crate::crafting::takes(r.out.0, i, s.item) {
+                let k = n.min(s.n);
+                s.n -= k;
+                n -= k;
+                if s.n == 0 {
+                    *s = Stack::default();
+                }
+            }
+        }
+        true
     }
 
     /// Crafts once into the inventory. Nothing changes unless the entire result fits.
@@ -1514,7 +1656,7 @@ impl Inventory {
         }
         let mut next = self.clone();
         for &(i, n) in r.ins {
-            if !next.take(i, n) {
+            if !next.take_for(r, i, n) {
                 return false;
             }
         }
@@ -1541,7 +1683,7 @@ impl Inventory {
         }
         let output=crate::equipment::craft_output(r,&self.slots);
         for &(i, n) in r.ins {
-            self.take(i, n);
+            self.take_for(r, i, n);
         }
         self.held = Stack { n:self.held.n+r.out.1,..output };
         true
@@ -1607,7 +1749,7 @@ impl Inventory {
 
 /// The item that places (and drops from) a door block.
 pub fn door_item(b: Block) -> Item {
-    OAK_DOOR + door_wood(b)
+    wood_item(door_wood(b) as usize, Piece::Door)
 }
 
 /// The item a block in the world stands for (middle click, and what it drops).
@@ -1615,8 +1757,10 @@ pub fn item_of(b: Block) -> Item {
     if let Some(i) = crate::catalogue::item_of_block(b) {
         return i;
     }
-    if crate::building::is_fence_gate(b) {return OAK_GATE+((b-crate::building::FENCE_GATE)>>2);}
-    if crate::building::is_sign(b) {return SIGN_ITEM;}
+    if crate::building::is_fence_gate(b) {return wood_item(crate::building::gate_wood(b), Piece::Gate);}
+    if crate::building::is_sign(b) {return wood_item(crate::building::sign_wood(b), Piece::Sign);}
+    if is_slab(b) && slab_mat(b) >= 20 {return wood_item(slab_mat(b) as usize - 18, Piece::Slab);}
+    if is_stairs(b) && stair_mat(b) >= 20 {return wood_item(stair_mat(b) as usize - 18, Piece::Stairs);}
     if is_slab(b) && slab_mat(b)>=8 {return MORE_SLAB_ITEM+slab_mat(b)-8;}
     if is_stairs(b) && stair_mat(b)>=8 {return MORE_STAIRS_ITEM+stair_mat(b)-8;}
     if is_slab(b) && slab_mat(b)>=4 {return EXTRA_SLAB+slab_mat(b)-4;}
@@ -1630,7 +1774,7 @@ pub fn item_of(b: Block) -> Item {
         b if is_slab(b) => SLAB + slab_mat(b),
         b if is_stairs(b) => STAIRS + stair_mat(b),
         b if is_ladder(b) => LADDER,
-        b if is_trapdoor(b) => TRAPDOOR,
+        b if is_trapdoor(b) => wood_item(trap_wood(b), Piece::Trapdoor),
         b if is_torch(b) => TORCH,
         b if (WOOL..WOOL_END).contains(&b) => WOOL_ITEM + (b - WOOL),
         b if is_deep_block(b) => DEEP_ITEM + (b - CINDERSTONE),

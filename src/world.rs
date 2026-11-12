@@ -173,7 +173,7 @@ pub fn is_sapling(b: Block) -> bool {
 /// A tree trunk.
 #[inline]
 pub fn is_log(b: Block) -> bool {
-    b == LOG || b == BIRCH_LOG
+    b == LOG || b == BIRCH_LOG || crate::catalogue::is_wood_log(b)
 }
 /// The sapling that leaves of a kind let fall.
 pub fn sapling_of(leaves: Block) -> Block {
@@ -262,7 +262,7 @@ pub fn torch_box(b: Block) -> [f32; 6] {
 /// The terrain generator a world was made with: 1 the first one, 2 the one with biomes
 /// (`worldgen`), 3 the same with villages in it (`village`). A world keeps its generator
 /// for good, or old and new chunks would not fit.
-pub const GEN_LATEST: u8 = 3;
+pub const GEN_LATEST: u8 = 4;
 
 /// Shapes that live only in the world, one id per state (their items are in `items`).
 /// Upper half slabs, same order as `SLAB`.
@@ -283,13 +283,14 @@ pub const STAIR_FLIP: Block = 4;
 /// the full block each slab / stair material is cut from
 /// (8.. are the block list's stones: stairs for the first `building::STAIR_MATS`, slabs
 /// for all of them, as in Minecraft)
-pub const SHAPE_FULL: [Block; 20] = {
+pub const SHAPE_FULL: [Block; 23] = {
     use crate::catalogue::*;
     [
         PLANKS, BIRCH_PLANKS, COBBLE, STONE_BRICK, BRICK, SANDSTONE, SLATE, CINDER_PLANKS,
         STONE, MOSSY_COBBLE, block(MOSSY_STONE_BRICKS), block(RED_SANDSTONE), block(SMOOTH_SANDSTONE), block(SMOOTH_RED_SANDSTONE),
         block(POLISHED_SLATE), block(SLATE_BRICKS), block(SLATE_TILES),
         block(SMOOTH_STONE), block(CUT_SANDSTONE), block(CUT_RED_SANDSTONE),
+        block(planks_row(0)), block(planks_row(1)), block(planks_row(2)),
     ]
 };
 
@@ -312,7 +313,7 @@ pub const SIDE_RIGHT: [u8; 4] = [3, 2, 0, 1];
 
 #[inline]
 pub fn is_door(b: Block) -> bool {
-    (DOOR_BASE..DOOR_END).contains(&b)
+    (DOOR_BASE..DOOR_END).contains(&b) || (crate::building::MORE_DOORS..crate::building::MORE_DOORS + 96).contains(&b)
 }
 /// Blocks that do not fill their cell: collision, aiming and drawing use `shape_boxes`.
 #[inline]
@@ -325,20 +326,22 @@ pub fn is_shaped(b: Block) -> bool {
 pub fn is_slab(b: Block) -> bool {
     (SLAB..SLAB_END).contains(&b) || (SLAB_TOP..LADDER_BASE).contains(&b) || (crate::building::SLABS..crate::building::SLABS+8).contains(&b)
         || (crate::building::MORE_SLABS..crate::building::MORE_SLABS_END).contains(&b)
+        || (crate::building::WOOD_SLABS..crate::building::WOOD_SLABS + 6).contains(&b)
 }
 #[inline]
 pub fn slab_top(b: Block) -> bool {
     (SLAB_TOP..LADDER_BASE).contains(&b) || (crate::building::SLABS+4..crate::building::SLABS+8).contains(&b)
         || ((crate::building::MORE_SLABS..crate::building::MORE_SLABS_END).contains(&b) && (b - crate::building::MORE_SLABS) & 1 == 1)
+        || ((crate::building::WOOD_SLABS..crate::building::WOOD_SLABS + 6).contains(&b) && (b - crate::building::WOOD_SLABS) & 1 == 1)
 }
 /// index into `SHAPE_FULL`
 #[inline]
 pub fn slab_mat(b: Block) -> Block {
-    if b >= crate::building::MORE_SLABS {8+(b-crate::building::MORE_SLABS)/2} else if b >= crate::building::SLABS {4+(b-crate::building::SLABS)%4} else if b >= SLAB_TOP { b - SLAB_TOP } else { b - SLAB }
+    if b >= crate::building::WOOD_SLABS {20+(b-crate::building::WOOD_SLABS)/2} else if b >= crate::building::MORE_SLABS {8+(b-crate::building::MORE_SLABS)/2} else if b >= crate::building::SLABS {4+(b-crate::building::SLABS)%4} else if b >= SLAB_TOP { b - SLAB_TOP } else { b - SLAB }
 }
 #[inline]
 pub fn is_fence(b: Block) -> bool {
-    b == FENCE || b == BIRCH_FENCE
+    b == FENCE || b == BIRCH_FENCE || crate::catalogue::is_fence(b)
 }
 #[inline]
 pub fn is_ladder(b: Block) -> bool {
@@ -346,20 +349,34 @@ pub fn is_ladder(b: Block) -> bool {
 }
 #[inline]
 pub fn is_trapdoor(b: Block) -> bool {
-    (TRAP_BASE..TRAP_END).contains(&b)
+    (TRAP_BASE..TRAP_END).contains(&b) || (crate::building::MORE_TRAPS..crate::building::MORE_TRAPS + 64).contains(&b)
+}
+/// The first id of a trapdoor's family (oak's starts at 141, so the state is an offset).
+#[inline]
+pub fn trap_base(b: Block) -> Block {
+    if b >= crate::building::MORE_TRAPS { crate::building::MORE_TRAPS + (b - crate::building::MORE_TRAPS) / 16 * 16 } else { TRAP_BASE }
+}
+#[inline]
+pub fn trap_bits(b: Block) -> Block {
+    b - trap_base(b)
+}
+/// 0 oak, 1 birch, 2 spruce, 3 jungle, 4 acacia
+pub fn trap_wood(b: Block) -> usize {
+    if b >= crate::building::MORE_TRAPS { 1 + (b - crate::building::MORE_TRAPS) as usize / 16 } else { 0 }
 }
 #[inline]
 pub fn trap_open(b: Block) -> bool {
-    (b - TRAP_BASE) & TRAP_OPEN != 0
+    trap_bits(b) & TRAP_OPEN != 0
 }
 #[inline]
 pub fn is_stairs(b: Block) -> bool {
     (STAIR_BASE..=255).contains(&b) || (crate::building::STAIRS..crate::building::STAIRS+32).contains(&b)
         || (crate::building::MORE_STAIRS..crate::building::MORE_STAIRS_END).contains(&b)
+        || (crate::building::WOOD_STAIRS..crate::building::WOOD_STAIRS + 24).contains(&b)
 }
 #[inline]
 pub fn stair_mat(b: Block) -> Block {
-    if b>=crate::building::MORE_STAIRS {8+((b-crate::building::MORE_STAIRS)>>3)} else if b>=crate::building::STAIRS {4+((b-crate::building::STAIRS)>>3)} else {(b-STAIR_BASE)>>3}
+    if b>=crate::building::WOOD_STAIRS {20+((b-crate::building::WOOD_STAIRS)>>3)} else if b>=crate::building::MORE_STAIRS {8+((b-crate::building::MORE_STAIRS)>>3)} else if b>=crate::building::STAIRS {4+((b-crate::building::STAIRS)>>3)} else {(b-STAIR_BASE)>>3}
 }
 /// Blocks that keep the daylight out of what lies under them, like a full block does.
 #[inline]
@@ -368,20 +385,21 @@ fn roofs(b: Block) -> bool {
 }
 #[inline]
 pub fn door_open(b: Block) -> bool {
-    (b - DOOR_BASE) & DOOR_OPEN != 0
+    b & DOOR_OPEN != 0
 }
 #[inline]
 pub fn door_upper(b: Block) -> bool {
-    (b - DOOR_BASE) & DOOR_UPPER != 0
+    b & DOOR_UPPER != 0
 }
 /// 0 oak, 1 birch
 #[inline]
 pub fn door_wood(b: Block) -> Block {
-    (b - DOOR_BASE) >> 5
+    if b >= crate::building::MORE_DOORS { 2 + ((b - crate::building::MORE_DOORS) >> 5) } else { (b - DOOR_BASE) >> 5 }
 }
 /// (side of the cell the door leaf stands on right now, side its hinge is at)
 pub fn door_sides(b: Block) -> (u8, u8) {
-    let d = b - DOOR_BASE;
+    // (door families start on a multiple of 32, so the low bits are the state)
+    let d = b & 31;
     let closed = (d & 3) as u8;
     let swing = if d & DOOR_HINGE_RIGHT != 0 { SIDE_RIGHT } else { SIDE_LEFT }[closed as usize];
     if d & DOOR_OPEN != 0 { (swing, closed) } else { (closed, swing) }
@@ -389,7 +407,19 @@ pub fn door_sides(b: Block) -> (u8, u8) {
 /// Texture layer of a door half; the mirrored set keeps the knob away from the hinge.
 fn door_layer(b: Block) -> u32 {
     let (_, hinge) = door_sides(b);
-    crate::textures::DOOR_TEX as u32 + door_wood(b) as u32 * 2 + !door_upper(b) as u32 + if hinge & 1 == 1 { 4 } else { 0 }
+    let wood = door_wood(b) as u32;
+    if wood >= 2 {
+        return crate::catalogue::wood_part(wood as usize - 2, !door_upper(b) as usize + if hinge & 1 == 1 { 2 } else { 0 });
+    }
+    crate::textures::DOOR_TEX as u32 + wood * 2 + !door_upper(b) as u32 + if hinge & 1 == 1 { 4 } else { 0 }
+}
+/// Texture layer of a trapdoor of each wood.
+fn trap_layer(b: Block) -> u32 {
+    match trap_wood(b) {
+        0 => TRAP_LAYER,
+        1 => FURNITURE + 19,
+        w => crate::catalogue::wood_part(w - 2, 4),
+    }
 }
 /// What a window pane joins up with.
 #[inline]
@@ -528,7 +558,7 @@ pub fn shape_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
         v[0] = side_box((b - LADDER_BASE) as u8, 0.0, DOOR_THICK);
         1
     } else if is_trapdoor(b) {
-        let d = b - TRAP_BASE;
+        let d = trap_bits(b);
         v[0] = if d & TRAP_OPEN != 0 {
             side_box((d & 3) as u8, 0.0, DOOR_THICK)
         } else if d & TRAP_TOP != 0 {
@@ -579,7 +609,7 @@ fn catalogue_shape(b: Block) -> Option<crate::catalogue::Shape> {
     match b {
         ANVIL => Some(Shape::Anvil),
         ENCHANTING_TABLE => Some(Shape::Table),
-        _ => crate::catalogue::def(b).map(|d| d.shape).filter(|&s| !matches!(s, Shape::Full | Shape::Glass)),
+        _ => crate::catalogue::def(b).map(|d| d.shape).filter(|&s| !matches!(s, Shape::Full | Shape::Glass | Shape::Fence)),
     }
 }
 
@@ -631,8 +661,8 @@ pub fn is_light(b: Block) -> bool {
 /// Texture layer for a block face (face: 0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z).
 #[inline]
 pub fn tex_for(b: Block, face: usize) -> u32 {
-    if crate::building::is_fence_gate(b) {return tex_for(if (b-crate::building::FENCE_GATE)&4!=0 {BIRCH_PLANKS} else {PLANKS},face);}
-    if crate::building::is_sign(b) {return tex_for(PLANKS,face);}
+    if crate::building::is_fence_gate(b) {return tex_for(crate::building::planks_of(crate::building::gate_wood(b)),face);}
+    if crate::building::is_sign(b) {return tex_for(crate::building::planks_of(crate::building::sign_wood(b)),face);}
     if crate::building::is_chest(b) {return chest_layer(b, face);}
     if crate::building::is_bed(b) {return bed_layer(b, face);}
     if crate::catalogue::def(b).is_some() {return crate::catalogue::tex(b, face);}
@@ -780,7 +810,7 @@ pub fn tex_for(b: Block, face: usize) -> u32 {
         b if is_sapling(b) => crate::textures::sapling_layer((b - SAPLING) as usize) as u32,
         b if is_slab(b) => tex_for(SHAPE_FULL[slab_mat(b) as usize], face),
         b if is_ladder(b) => LADDER_LAYER,
-        b if is_trapdoor(b) => TRAP_LAYER,
+        b if is_trapdoor(b) => trap_layer(b),
         b if is_door(b) => door_layer(b),
         b if is_stairs(b) => tex_for(SHAPE_FULL[stair_mat(b) as usize], face),
         _ => 14,
@@ -1144,7 +1174,7 @@ fn generate_for(ver: u8, seed: u32, cx: i32, cz: i32) -> ChunkData {
     let made = if ver == crate::deep::DEEP_VER {
         crate::deep::generate(seed, cx, cz)
     } else if ver >= 2 {
-        crate::worldgen::generate(seed, cx, cz, ver >= 3)
+        crate::worldgen::generate(seed, cx, cz, ver >= 3, ver >= 4)
     } else {
         generate(seed, cx, cz)
     };
@@ -3164,7 +3194,7 @@ mod tests {
                                 lava += (b == LAVA) as u32;
                                 chests += (b == LOOT_CHEST) as u32;
                                 match b {
-                                    LOG | BIRCH_LOG if under != LOG && under != BIRCH_LOG => {
+                                    b if is_log(b) && !is_log(under) => {
                                         trees += 1;
                                         floating += (under == AIR) as u32;
                                     }
@@ -3269,7 +3299,7 @@ mod tests {
                                 rock[k].0 += 1;
                                 rock[k].1 += (b == AIR || b == LAVA) as u32;
                             }
-                            if (b == LOG || b == BIRCH_LOG) && y > h {
+                            if is_log(b) && y > h {
                                 assert!(under != AIR && under != WATER, "seed {seed}: tree in the air at {x} {y} {z}");
                             }
                         }

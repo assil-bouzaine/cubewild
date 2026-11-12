@@ -4,6 +4,26 @@ use crate::items::{self::*, Kind};
 use crate::world::*;
 use crate::catalogue as c;
 
+/// Recipes that, as in Minecraft, take any wood's planks (where they name oak planks).
+fn any_planks(out: Item) -> bool {
+    matches!(out, STICK | WORKBENCH | CHEST | BOWL | BOAT | SHIELD | BED | WOOD_PICK | WOOD_AXE | WOOD_SHOVEL | WOOD_HOE | WOOD_SWORD)
+        || [c::BOOKSHELF, c::SMITHING_TABLE, c::FLETCHING_TABLE, c::CARTOGRAPHY_TABLE, c::LOOM, c::GRINDSTONE].iter().any(|&row| out == cat(row))
+}
+/// Recipes that take any log (where they name oak logs).
+fn any_log(out: Item) -> bool {
+    out == cat(c::SMOKER) || out == cat(c::CAMPFIRE) || out == cat(c::SOUL_CAMPFIRE)
+}
+pub fn is_planks_item(i: Item) -> bool {
+    matches!(i, PLANKS | BIRCH_PLANKS) || i == DEEP_ITEM + 8 || (0..3).any(|w| i == cat(c::planks_row(w)))
+}
+pub fn is_log_item(i: Item) -> bool {
+    matches!(i, LOG | BIRCH_LOG) || i == DEEP_ITEM + 6 || (0..3).any(|w| i == cat(c::log_row(w)))
+}
+/// Whether the recipe for `out` takes `have` where it lists `want`.
+pub fn takes(out: Item, want: Item, have: Item) -> bool {
+    have == want || (want == PLANKS && any_planks(out) && is_planks_item(have)) || (want == LOG && any_log(out) && is_log_item(have))
+}
+
 fn pattern(r: &Recipe) -> Option<(usize, Vec<Item>)> {
     let p = r.ins.first()?.0;
     let s = STICK;
@@ -27,17 +47,19 @@ fn pattern(r: &Recipe) -> Option<(usize, Vec<Item>)> {
             WORKBENCH => (2, vec![p, p, p, p]),
             FURNACE | CHEST => (3, vec![p, p, p, p, 0, p, p, p, p]),
             LADDER => (3, vec![s, 0, s, s, s, s, s, 0, s]),
-            TRAPDOOR => (3, vec![p, p, p, p, p, p]),
+            i if matches!(wood_piece(i), Some((_, Piece::Trapdoor))) => (3, vec![p, p, p, p, p, p]),
+            // a door: two wide, three high
+            i if matches!(wood_piece(i), Some((_, Piece::Door))) => (2, vec![p, p, p, p, p, p]),
             BUCKET => (3, vec![p, 0, p, 0, p, 0]),
             BOAT => (3, vec![p, 0, p, p, p, p]),
             BREAD => (3, vec![p, p, p]),
             ANVIL_ITEM => (3, vec![IRON_BLOCK, IRON_BLOCK, IRON_BLOCK, 0, IRON_INGOT, 0, IRON_INGOT, IRON_INGOT, IRON_INGOT]),
-            OAK_GATE | BIRCH_GATE => {
+            i if matches!(wood_piece(i), Some((_, Piece::Gate))) => {
                 let wood = r.ins[1].0;
                 (3, vec![s, wood, s, s, wood, s])
             }
-            SIGN_ITEM => (3, vec![p, p, p, p, p, p, 0, s, 0]),
-            FENCE | BIRCH_FENCE => (3, vec![p, s, p, p, s, p]),
+            i if matches!(wood_piece(i), Some((_, Piece::Sign))) => (3, vec![p, p, p, p, p, p, 0, s, 0]),
+            i if i == FENCE || i == BIRCH_FENCE || (0..3).any(|w| i == cat(c::fence_row(w))) => (3, vec![p, s, p, p, s, p]),
             SHIELD => (3, vec![p, IRON_INGOT, p, p, p, p, 0, p, 0]),
             // wool over planks (the old hide recipe stays shapeless)
             BED if p != PLANKS => {
@@ -135,7 +157,7 @@ pub fn recipe(grid: &[Stack; 9], size: usize, workbench: bool) -> Option<usize> 
                                         AIR
                                     };
                                     let st = grid[y * 3 + x];
-                                    (if st.is_empty() { AIR } else { st.item }) == expected
+                                    if st.is_empty() || expected == AIR { st.is_empty() && expected == AIR } else { takes(r.out.0, expected, st.item) }
                                 })
                             })
                         })
@@ -145,7 +167,9 @@ pub fn recipe(grid: &[Stack; 9], size: usize, workbench: bool) -> Option<usize> 
         } else {
             let mut counts = std::collections::BTreeMap::new();
             for st in grid.iter().filter(|s| !s.is_empty()) {
-                *counts.entry(st.item).or_insert(0u32) += 1;
+                // (any wood counts as the planks or log the recipe names)
+                let item = r.ins.iter().map(|&(i, _)| i).find(|&want| takes(r.out.0, want, st.item)).unwrap_or(st.item);
+                *counts.entry(item).or_insert(0u32) += 1;
             }
             let mut expected = std::collections::BTreeMap::new();
             for &(item, n) in r.ins {
@@ -349,6 +373,58 @@ mod tests {
         // concrete powder, and glazed terracotta from the furnace
         assert_eq!(made([SAND, SAND, SAND, SAND, GRAVEL, GRAVEL, GRAVEL, GRAVEL, DYE + 3], false), Some((cat(c::POWDER_ROW + 3), 8)));
         assert_eq!(crate::furnace::smelt(cat(c::TERRACOTTA + 9)), Some((cat(c::GLAZED_ROW + 9), 1)));
+    }
+    #[test]
+    fn every_wood_has_its_pieces_and_states_stay_in_their_family() {
+        use crate::building::*;
+        for w in 0..5 {
+            for piece in PIECES_ALL {
+                let item = wood_item(w, piece);
+                assert_eq!(wood_piece(item), Some((w, piece)), "wood {w} {piece:?}");
+                assert!(valid(item) && name(item) != "?" && !desc(item).is_empty(), "wood {w} {piece:?}");
+            }
+            let door = door_base(w) + 2 + DOOR_HINGE_RIGHT;
+            assert!(is_door(door) && is_door(door + DOOR_UPPER) && is_door(door ^ DOOR_OPEN));
+            assert_eq!((door_wood(door) as usize, door_wood(door + DOOR_UPPER) as usize, door_item(door)), (w, w, wood_item(w, Piece::Door)));
+            assert!(door_upper(door + DOOR_UPPER) && !door_upper(door) && door_open(door ^ DOOR_OPEN));
+            let trap = trap_block(w) + 3 + TRAP_TOP;
+            let opened = trap_base(trap) + (trap_bits(trap) ^ TRAP_OPEN);
+            assert!(is_trapdoor(trap) && is_trapdoor(opened) && trap_open(opened) && !trap_open(trap));
+            assert_eq!((trap_wood(opened), item_of(opened)), (w, wood_item(w, Piece::Trapdoor)));
+            let gate = placed_gate(w, 2);
+            assert!(is_fence_gate(gate) && is_fence_gate(gate ^ 2) && gate_open(gate ^ 2) && !gate_open(gate));
+            assert_eq!((gate_wood(gate ^ 2), item_of(gate)), (w, wood_item(w, Piece::Gate)));
+            let sign = sign_block(w, 3);
+            assert!(is_sign(sign) && sign_wood(sign) == w && item_of(sign) == wood_item(w, Piece::Sign));
+            let (stairs, slab) = (block_of(wood_item(w, Piece::Stairs)), block_of(wood_item(w, Piece::Slab)));
+            assert!(is_stairs(stairs) && is_slab(slab) && SHAPE_FULL[slab_mat(slab) as usize] == planks_of(w));
+            assert_eq!((item_of(stairs), item_of(slab)), (wood_item(w, Piece::Stairs), wood_item(w, Piece::Slab)));
+            for b in [door, trap, gate, sign, stairs, slab] {
+                assert!(crate::registry::valid(b), "wood {w} block {b}");
+            }
+        }
+    }
+    #[test]
+    fn any_planks_make_tools_and_tables_but_each_wood_its_own_pieces() {
+        use crate::catalogue as c;
+        let (sp, ju) = (cat(c::planks_row(0)), cat(c::planks_row(1)));
+        assert_eq!(recipe(&grid([sp, sp, 0, sp, sp, 0, 0, 0, 0]), 2, false).map(|i| RECIPES[i].out), Some((WORKBENCH, 1)));
+        assert_eq!(made([ju, ju, ju, 0, STICK, 0, 0, STICK, 0], false), Some((WOOD_PICK, 1)));
+        assert_eq!(made([sp, ju, sp, ju, 0, sp, ju, sp, ju], true), Some((CHEST, 1)));
+        assert_eq!(made([sp, 0, 0, sp, sp, 0, sp, sp, sp], true), Some((wood_item(2, Piece::Stairs), 4)));
+        assert_eq!(made([ju, ju, 0, ju, ju, 0, ju, ju, 0], true), Some((wood_item(3, Piece::Door), 3)));
+        assert_eq!(made([ju, ju, ju, ju, ju, ju, 0, 0, 0], true), Some((wood_item(3, Piece::Trapdoor), 2)));
+        let log = cat(c::log_row(2));
+        assert_eq!(made([0, STICK, 0, STICK, COAL, STICK, log, log, log], true), Some((cat(c::CAMPFIRE), 1)));
+        assert_eq!(recipe(&grid([log, 0, 0, 0, 0, 0, 0, 0, 0]), 2, false).map(|i| RECIPES[i].out), Some((cat(c::planks_row(2)), 4)));
+        // the recipe book counts and spends any planks too
+        let mut inv = Inventory::new();
+        inv.add(sp, 5);
+        inv.add(ju, 3);
+        let chest = RECIPES.iter().find(|r| r.out.0 == CHEST).unwrap();
+        assert!(inv.can_craft(chest) && inv.craft(chest));
+        assert_eq!((inv.count(sp) + inv.count(ju), inv.count(CHEST)), (0, 1));
+        assert_eq!(crate::furnace::smelt(log), Some((COAL, 1)));
     }
     #[test]
     fn grindstones_refund_levels_and_anvils_wear_out() {

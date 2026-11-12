@@ -31,6 +31,8 @@ pub enum Shape {
     Carpet,
     HangingLantern,
     Campfire,
+    /// joins like the oak fence (worked out in `world`)
+    Fence,
 }
 
 /// A texture: an existing layer, or one drawn here from a pattern and a colour.
@@ -266,6 +268,23 @@ const GLAZED: [Def; 16] = [
     d("Black Glazed Terracotta", "Black terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[15])], 1.4, 1.4, PICK, 1, B),
 ];
 
+/// Spruce, jungle and acacia: log, planks (whose parts are the door's and trapdoor's
+/// textures) and fence each.
+const WOODS: [Def; 9] = [
+    burns(d("Spruce Log", "Craft into four spruce planks, or burn into coal in a furnace.", &[Pat::Draw(log_end, [114, 84, 50]), Pat::Draw(log_bark, [62, 44, 26])], 2.0, 2.0, AXE, 0, B), 15.0),
+    with_parts(burns(d("Spruce Planks", "Four from a spruce log. For spruce stairs, slabs, fences, doors and signs, and anything made of any planks.", &[Pat::Draw(planks, [114, 84, 50])], 2.0, 3.0, AXE, 0, B), 15.0),
+        &[Pat::Draw(door_top, [114, 84, 50]), Pat::Draw(door_bottom, [114, 84, 50]), Pat::Draw(door_top_m, [114, 84, 50]), Pat::Draw(door_bottom_m, [114, 84, 50]), Pat::Draw(trapdoor, [114, 84, 50])]),
+    shaped(burns(d("Spruce Fence", "Four planks and two sticks make three. Too high to jump.", &[Pat::Draw(planks, [114, 84, 50])], 2.0, 3.0, AXE, 0, B), 15.0), Shape::Fence, 0, Some(Pat::Draw(fence_icon, [114, 84, 50]))),
+    burns(d("Jungle Log", "Craft into four jungle planks, or burn into coal in a furnace.", &[Pat::Draw(log_end, [160, 114, 78]), Pat::Draw(log_bark, [88, 70, 30])], 2.0, 2.0, AXE, 0, B), 15.0),
+    with_parts(burns(d("Jungle Planks", "Four from a jungle log. For jungle stairs, slabs, fences, doors and signs, and anything made of any planks.", &[Pat::Draw(planks, [160, 114, 78])], 2.0, 3.0, AXE, 0, B), 15.0),
+        &[Pat::Draw(door_top, [160, 114, 78]), Pat::Draw(door_bottom, [160, 114, 78]), Pat::Draw(door_top_m, [160, 114, 78]), Pat::Draw(door_bottom_m, [160, 114, 78]), Pat::Draw(trapdoor, [160, 114, 78])]),
+    shaped(burns(d("Jungle Fence", "Four planks and two sticks make three. Too high to jump.", &[Pat::Draw(planks, [160, 114, 78])], 2.0, 3.0, AXE, 0, B), 15.0), Shape::Fence, 0, Some(Pat::Draw(fence_icon, [160, 114, 78]))),
+    burns(d("Acacia Log", "Craft into four acacia planks, or burn into coal in a furnace.", &[Pat::Draw(log_end, [170, 92, 52]), Pat::Draw(log_bark, [104, 98, 88])], 2.0, 2.0, AXE, 0, B), 15.0),
+    with_parts(burns(d("Acacia Planks", "Four from a acacia log. For acacia stairs, slabs, fences, doors and signs, and anything made of any planks.", &[Pat::Draw(planks, [170, 92, 52])], 2.0, 3.0, AXE, 0, B), 15.0),
+        &[Pat::Draw(door_top, [170, 92, 52]), Pat::Draw(door_bottom, [170, 92, 52]), Pat::Draw(door_top_m, [170, 92, 52]), Pat::Draw(door_bottom_m, [170, 92, 52]), Pat::Draw(trapdoor, [170, 92, 52])]),
+    shaped(burns(d("Acacia Fence", "Four planks and two sticks make three. Too high to jump.", &[Pat::Draw(planks, [170, 92, 52])], 2.0, 3.0, AXE, 0, B), 15.0), Shape::Fence, 0, Some(Pat::Draw(fence_icon, [170, 92, 52]))),
+];
+
 /// Joins the groups of rows into one table, at compile time.
 const fn concat<const N: usize>(groups: &[&[Def]]) -> [Def; N] {
     let mut all = [d("", "", &[], 0.0, 0.0, None, 0, B); N];
@@ -334,8 +353,8 @@ pub const DEFS: &[Def] = &{
         shaped(d("Lantern", "Eight iron nuggets round a torch. A steady light that stands on a block.",
             &[Pat::Draw(lantern, [56, 58, 66])], 3.5, 3.5, PICK, 1, U), Shape::Lantern, 15, Some(Pat::Draw(lantern_icon, [56, 58, 66]))),
     ];
-    concat::<{ HEAD_LEN + 16 + TAIL_LEN + PHASE2_LEN + 16 * 3 + WALLS_LEN + 16 * 3 }>(&[
-        &head, &TERRACOTTAS, &tail, &PHASE2, &STAINED_GLASS, &STAINED_PANES, &CARPETS, &WALLS, &CONCRETES, &POWDERS, &GLAZED,
+    concat::<{ HEAD_LEN + 16 + TAIL_LEN + PHASE2_LEN + 16 * 3 + WALLS_LEN + 16 * 3 + 9 }>(&[
+        &head, &TERRACOTTAS, &tail, &PHASE2, &STAINED_GLASS, &STAINED_PANES, &CARPETS, &WALLS, &CONCRETES, &POWDERS, &GLAZED, &WOODS,
     ])
 };
 
@@ -393,6 +412,28 @@ pub const WALL_ROW: usize = 104;
 pub const CONCRETE_ROW: usize = 115;
 pub const POWDER_ROW: usize = 131;
 pub const GLAZED_ROW: usize = 147;
+/// spruce, jungle, acacia: + 3 x wood, then + 0 log, + 1 planks, + 2 fence
+pub const WOOD_ROW: usize = 163;
+pub const fn log_row(wood: usize) -> usize {
+    WOOD_ROW + 3 * wood
+}
+pub const fn planks_row(wood: usize) -> usize {
+    WOOD_ROW + 3 * wood + 1
+}
+pub const fn fence_row(wood: usize) -> usize {
+    WOOD_ROW + 3 * wood + 2
+}
+pub fn is_wood_log(b: Block) -> bool {
+    row_of_block(b).is_some_and(|r| r >= WOOD_ROW && (r - WOOD_ROW) % 3 == 0 && r < WOOD_ROW + 9)
+}
+pub fn is_fence(b: Block) -> bool {
+    shape_is(b, Shape::Fence)
+}
+/// Door (0 top, 1 bottom, 2 top mirrored, 3 bottom mirrored) and trapdoor (4) layers of
+/// a new wood (0 spruce, 1 jungle, 2 acacia).
+pub fn wood_part(wood: usize, k: usize) -> u32 {
+    LAYOUT.1[planks_row(wood)].2[k]
+}
 
 pub const fn item(row: usize) -> Item {
     ITEM0 + row as Item
@@ -476,7 +517,7 @@ pub fn boxes(shape: Shape, drawing: bool) -> crate::world::Boxes {
         }
         Shape::Campfire => &[[0, 0, 0, 16, 7, 16]],
         // (glass is a cube, panes and walls are worked out with their neighbours in `world`)
-        Shape::Glass | Shape::Pane | Shape::Wall => &[[0, 0, 0, 16, 16, 16]],
+        Shape::Glass | Shape::Pane | Shape::Wall | Shape::Fence => &[[0, 0, 0, 16, 16, 16]],
     };
     for (k, b) in list.iter().enumerate() {
         v[k] = px(*b);
@@ -971,6 +1012,51 @@ fn glazed(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
         sh(c, 0.95 + hash(x, y, 53) * 0.08)
     }
 }
+fn log_bark(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let ridge = hash(x, 0, 54) > 0.55;
+    sh(c, if ridge { 0.8 } else { 1.0 } + hash(x, y / 3, 55) * 0.12 - if (x + y / 4) % 5 == 0 { 0.1 } else { 0.0 })
+}
+fn log_end(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let e = x.min(y).min(15 - x).min(15 - y);
+    if e == 0 {
+        return sh(c, 0.48);
+    }
+    let r = (((x as f32 - 7.5).powi(2) + (y as f32 - 7.5).powi(2)).sqrt()) as i32;
+    sh(c, if r % 3 == 0 { 0.8 } else { 0.98 + hash(x, y, 56) * 0.06 })
+}
+fn planks(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let board = y / 4;
+    let seam = y % 4 == 3 || (x + board * 5) % 16 == 0;
+    if seam { sh(c, 0.7) } else { sh(c, 0.9 + hash(board, x / 5, 57) * 0.12 + hash(x, y, 58) * 0.06) }
+}
+fn wood_f(c: [u8; 3]) -> [f32; 3] {
+    [c[0] as f32, c[1] as f32, c[2] as f32]
+}
+fn door_top(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    crate::textures::door_pixel(wood_f(c), true, false, 59, x, y)
+}
+fn door_bottom(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    crate::textures::door_pixel(wood_f(c), false, false, 60, x, y)
+}
+fn door_top_m(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    crate::textures::door_pixel(wood_f(c), true, true, 59, x, y)
+}
+fn door_bottom_m(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    crate::textures::door_pixel(wood_f(c), false, true, 60, x, y)
+}
+fn trapdoor(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    crate::textures::trapdoor_pixel(wood_f(c), x, y)
+}
+/// a fence for the item: two posts and two rails
+fn fence_icon(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    if matches!(x, 2..=4 | 11..=13) && y >= 1 {
+        planks(x, y, c)
+    } else if matches!(y, 4 | 5 | 10 | 11) {
+        sh(c, 0.82)
+    } else {
+        CLEAR
+    }
+}
 fn lantern_icon(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
     match (x, y) {
         (7..=8, 1..=2) | (6..=9, 3..=4) => sh(c, 1.0),
@@ -1015,8 +1101,9 @@ mod tests {
         assert_eq!(DEFS[CARPET_ROW + 14].name, "Red Carpet");
         assert_eq!((DEFS[WALL_ROW].name, DEFS[WALL_ROW + 10].name), ("Cobblestone Wall", "Slate Tile Wall"));
         assert_eq!((DEFS[CONCRETE_ROW].name, DEFS[POWDER_ROW + 15].name), ("White Concrete", "Black Concrete Powder"));
-        assert_eq!(DEFS[DEFS.len() - 1].name, "Black Glazed Terracotta");
-        assert_eq!(DEFS.len(), GLAZED_ROW + 16);
+        assert_eq!(DEFS[GLAZED_ROW + 15].name, "Black Glazed Terracotta");
+        assert_eq!((DEFS[log_row(0)].name, DEFS[planks_row(1)].name, DEFS[fence_row(2)].name), ("Spruce Log", "Jungle Planks", "Acacia Fence"));
+        assert_eq!(DEFS.len(), WOOD_ROW + 9);
         assert_eq!(item_of_block(block(HANGING_LANTERN)), Some(item(LANTERN)));
         assert_eq!(drawn().len(), layer_count());
         for (r, def) in DEFS.iter().enumerate() {

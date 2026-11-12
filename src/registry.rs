@@ -22,6 +22,12 @@ pub const FAMILIES: &[(Block, Block, &str)] = &[
     (448, 703, "the block catalogue (catalogue::DEFS, appended only)"),
     (704, 727, "slabs of the block list's stones"),
     (728, 799, "stairs of the block list's stones"),
+    (800, 823, "spruce, jungle and acacia stairs"),
+    (824, 829, "spruce, jungle and acacia slabs"),
+    (832, 927, "spruce, jungle and acacia doors"),
+    (928, 991, "birch, spruce, jungle and acacia trapdoors"),
+    (992, 1007, "birch, spruce, jungle and acacia signs"),
+    (1008, 1019, "spruce, jungle and acacia fence gates"),
 ];
 pub fn valid(block: Block) -> bool {
     FAMILIES.iter().any(|&(first, last, _)| (first..=last).contains(&block))
@@ -78,7 +84,7 @@ mod tests {
         let mut changed = encoded.clone();
         changed[24] ^= 1;
         assert!(decode(&changed).is_err());
-        assert!(decode(&encode(&ChunkData { blocks: vec![1000; VOL].into_boxed_slice() })).is_err());
+        assert!(decode(&encode(&ChunkData { blocks: vec![1023; VOL].into_boxed_slice() })).is_err());
         let mut changed = encoded;
         changed[4] = 99;
         assert!(decode(&changed).is_err());

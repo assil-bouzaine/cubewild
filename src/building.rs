@@ -16,29 +16,74 @@ pub const MORE_SLABS_END: Block = MORE_SLABS + 24;
 pub const MORE_STAIRS: Block = 728;
 pub const STAIR_MATS: Block = 17;
 pub const MORE_STAIRS_END: Block = MORE_STAIRS + (STAIR_MATS - 8) * 8;
+// ---------------------------------------------------------------- woods
+//
+// Woods: 0 oak, 1 birch, 2 spruce, 3 jungle, 4 acacia. Each kind of wooden piece keeps
+// its old ids for oak and birch and has a new family for the others; every family's
+// base is aligned to its state count, so state bits read the same in all of them.
+
+/// stairs of spruce, jungle and acacia (`SHAPE_FULL` materials 20..23), 8 states each
+pub const WOOD_STAIRS: Block = 800;
+/// slabs of spruce, jungle and acacia: lower, upper
+pub const WOOD_SLABS: Block = 824;
+/// doors of spruce, jungle and acacia, 32 states each, laid out as `DOOR_BASE`'s
+pub const MORE_DOORS: Block = 832;
+/// trapdoors of birch, spruce, jungle and acacia, 16 states each, as `TRAP_BASE`'s
+pub const MORE_TRAPS: Block = 928;
+/// signs of birch, spruce, jungle and acacia, four orientations each
+pub const MORE_SIGNS: Block = 992;
+/// fence gates of spruce, jungle and acacia: axis bit 0, open bit 1
+pub const MORE_GATES: Block = 1008;
+
+/// The planks a wood's pieces are made of and wear.
+pub fn planks_of(wood: usize) -> Block {
+    match wood {
+        0 => PLANKS,
+        1 => BIRCH_PLANKS,
+        w => crate::catalogue::block(crate::catalogue::planks_row(w - 2)),
+    }
+}
 pub fn is_fence_gate(b: Block) -> bool {
-    (FENCE_GATE..FENCE_GATE + 8).contains(&b)
+    (FENCE_GATE..FENCE_GATE + 8).contains(&b) || (MORE_GATES..MORE_GATES + 12).contains(&b)
 }
 pub fn gate_open(b: Block) -> bool {
-    is_fence_gate(b) && (b - FENCE_GATE) & 2 != 0
+    is_fence_gate(b) && b & 2 != 0
 }
-pub fn placed_gate(wood: Block, facing: Block) -> Block {
+pub fn gate_wood(b: Block) -> usize {
+    if b >= MORE_GATES { 2 + (b - MORE_GATES) as usize / 4 } else { (b - FENCE_GATE) as usize >> 2 }
+}
+pub fn placed_gate(wood: usize, facing: Block) -> Block {
     // SIDE_DIR groups X directions first. The gate spans across the approach.
-    FENCE_GATE + wood * 4 + ((facing / 2) ^ 1)
+    let base = if wood < 2 { FENCE_GATE + wood as Block * 4 } else { MORE_GATES + (wood as Block - 2) * 4 };
+    base + ((facing / 2) ^ 1)
 }
 pub fn is_sign(b: Block) -> bool {
-    (SIGN..SIGN + 4).contains(&b)
+    (SIGN..SIGN + 4).contains(&b) || (MORE_SIGNS..MORE_SIGNS + 16).contains(&b)
+}
+pub fn sign_wood(b: Block) -> usize {
+    if b >= MORE_SIGNS { 1 + (b - MORE_SIGNS) as usize / 4 } else { 0 }
+}
+pub fn sign_block(wood: usize, facing: Block) -> Block {
+    if wood == 0 { SIGN + facing } else { MORE_SIGNS + (wood as Block - 1) * 4 + facing }
+}
+pub fn door_base(wood: usize) -> Block {
+    if wood < 2 { DOOR_BASE + wood as Block * 32 } else { MORE_DOORS + (wood as Block - 2) * 32 }
+}
+pub fn trap_block(wood: usize) -> Block {
+    if wood == 0 { TRAP_BASE } else { MORE_TRAPS + (wood as Block - 1) * 16 }
 }
 pub fn slab(mat: Block, top: bool) -> Block {
-    if mat < 4 { if top { SLAB_TOP + mat } else { SLAB + mat } } else if mat < 8 { SLABS + mat - 4 + if top { 4 } else { 0 } } else { MORE_SLABS + (mat - 8) * 2 + top as Block }
+    if mat < 4 { if top { SLAB_TOP + mat } else { SLAB + mat } } else if mat < 8 { SLABS + mat - 4 + if top { 4 } else { 0 } } else if mat < 20 { MORE_SLABS + (mat - 8) * 2 + top as Block } else { WOOD_SLABS + (mat - 20) * 2 + top as Block }
 }
 pub fn stairs(mat: Block, side: Block, top: bool) -> Block {
     if mat < 4 {
         STAIR_BASE + mat * 8 + side + if top { STAIR_FLIP } else { 0 }
     } else if mat < 8 {
         STAIRS + (mat - 4) * 8 + side + if top { STAIR_FLIP } else { 0 }
-    } else {
+    } else if mat < 20 {
         MORE_STAIRS + (mat - 8) * 8 + side + if top { STAIR_FLIP } else { 0 }
+    } else {
+        WOOD_STAIRS + (mat - 20) * 8 + side + if top { STAIR_FLIP } else { 0 }
     }
 }
 
@@ -54,7 +99,7 @@ pub fn gate_boxes(b: Block, drawing: bool) -> Boxes {
     } else {
         [0.1875, 0.375, 0.4375, 0.8125, if drawing { 0.9375 } else { 1.5 }, 0.5625]
     };
-    if (b - FENCE_GATE) & 1 != 0 {
+    if b & 1 != 0 {
         for bx in &mut v[..3] {
             bx.swap(0, 2);
             bx.swap(3, 5);
@@ -67,7 +112,7 @@ pub fn sign_boxes(b: Block) -> Boxes {
     let mut v = [[0.0; 6]; 8];
     v[0] = [0.4375, 0.0, 0.4375, 0.5625, 0.5, 0.5625];
     v[1] = [0.0625, 0.5, 0.4375, 0.9375, 1.0, 0.5625];
-    if (b - SIGN) / 2 == 0 {
+    if (b & 3) / 2 == 0 {
         for bx in &mut v[..2] {
             bx.swap(0, 2);
             bx.swap(3, 5);
@@ -640,7 +685,7 @@ impl Game {
                 }
                 b if is_trapdoor(b) && !sneak => {
                     self.place_cd = 0.25;
-                    let turned = TRAP_BASE + ((b - TRAP_BASE) ^ TRAP_OPEN);
+                    let turned = trap_base(b) + (trap_bits(b) ^ TRAP_OPEN);
                     if !self.fits(p, turned) {
                         self.say("Something is in the way of the trapdoor".into());
                     } else if self.world.set_block(p.x, p.y, p.z, turned) {
@@ -882,7 +927,7 @@ impl Game {
 
             _ => {}
         }
-        if matches!(item, items::OAK_DOOR | items::BIRCH_DOOR) {
+        if matches!(items::wood_piece(item), Some((_, items::Piece::Door))) {
             self.place_door(target, item);
             return;
         }
@@ -904,8 +949,8 @@ impl Game {
         // pointing at the upper half of a side, or at an underside, places the high variant
         let high = n.y == -1 || (n.y == 0 && (self.player.eye() + d * t).y - p.y as f32 > 0.5);
         let (at, block): (IVec3, Block) = match item {
-            items::OAK_GATE | items::BIRCH_GATE => (q, building::placed_gate(item - items::OAK_GATE, facing)),
-            items::SIGN_ITEM => (q, building::SIGN + facing),
+            i if matches!(items::wood_piece(i), Some((_, items::Piece::Gate))) => (q, building::placed_gate(items::wood_piece(i).unwrap().0, facing)),
+            i if matches!(items::wood_piece(i), Some((_, items::Piece::Sign))) => (q, building::sign_block(items::wood_piece(i).unwrap().0, facing)),
             items::LADDER => {
                 if n.y != 0 || !is_opaque(clicked) {
                     self.say("A ladder hangs on the side of a solid block".into());
@@ -923,7 +968,10 @@ impl Game {
                 }
                 (q, if n.y == 1 { TORCH } else { WALL_TORCH + wall })
             }
-            items::TRAPDOOR => (q, TRAP_BASE + if n.y == 0 { wall } else { facing } + if high { TRAP_TOP } else { 0 }),
+            i if matches!(items::wood_piece(i), Some((_, items::Piece::Trapdoor))) => {
+                let wood = items::wood_piece(i).unwrap().0;
+                (q, building::trap_block(wood) + if n.y == 0 { wall } else { facing } + if high { TRAP_TOP } else { 0 })
+            }
             i if items::stair_material(i).is_some() => (q, building::stairs(items::stair_material(i).unwrap(), facing, high)),
             i if items::slab_material(i).is_some() => {
                 // two halves of a kind make a full block again
@@ -1132,7 +1180,8 @@ impl Game {
         let beside = |s: u8| at(w, SIDE_DIR[s as usize].0, 0, SIDE_DIR[s as usize].1);
         let (left, right) = (beside(SIDE_LEFT[side as usize]), beside(SIDE_RIGHT[side as usize]));
         let hinge_right = !is_door(right) && (is_door(left) || (full(right) && !full(left)));
-        let lower = DOOR_BASE + side as Block + if hinge_right { DOOR_HINGE_RIGHT } else { 0 } + (item - items::OAK_DOOR) * 32;
+        let wood = items::wood_piece(item).map_or(0, |w| w.0);
+        let lower = building::door_base(wood) + side as Block + if hinge_right { DOOR_HINGE_RIGHT } else { 0 };
         if self.door_blocked(q, lower) {
             return;
         }
