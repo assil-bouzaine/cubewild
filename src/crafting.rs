@@ -324,6 +324,33 @@ mod tests {
         assert!(RECIPES.iter().any(|r| r.station == STONECUTTER && r.ins == [(cb, 1)] && r.out == (cat(c::WALL_ROW), 1)));
     }
     #[test]
+    fn block_list_stairs_and_slabs_round_trip_and_follow_minecraft() {
+        use crate::catalogue as c;
+        for i in MORE_SLAB_ITEM..MORE_SHAPES_END {
+            let b = block_of(i);
+            assert!(valid(i) && is_block(i) && name(i).ends_with(if i < MORE_STAIRS_ITEM { "Slab" } else { "Stairs" }), "{i}");
+            assert!(crate::registry::valid(b) && is_shaped(b) && item_of(b) == i, "{i}");
+            assert_eq!(is_slab(b), i < MORE_STAIRS_ITEM);
+            assert_eq!(is_stairs(b), i >= MORE_STAIRS_ITEM);
+        }
+        // a stone slab: lower and upper halves, Minecraft's hardness, two make stone again
+        let (low, high) = (crate::building::slab(8, false), crate::building::slab(8, true));
+        assert!(!slab_top(low) && slab_top(high) && slab_mat(high) == 8 && SHAPE_FULL[8] == STONE);
+        assert_eq!(crate::blockinfo::props(high).hardness, 1.5);
+        let stairs = crate::building::stairs(16, 3, true);
+        assert!(is_stairs(stairs) && stair_mat(stairs) == 16 && SHAPE_FULL[16] == c::block(c::SLATE_TILES));
+        assert_eq!(shape_boxes(stairs, |_, _| AIR).1, 2);
+        let s = STONE;
+        assert_eq!(made([s, s, s, 0, 0, 0, 0, 0, 0], true), Some((MORE_SLAB_ITEM, 6)));
+        assert_eq!(made([s, 0, 0, s, s, 0, s, s, s], true), Some((MORE_STAIRS_ITEM, 4)));
+        let ss = cat(c::SMOOTH_STONE);
+        assert_eq!(made([ss, ss, ss, 0, 0, 0, 0, 0, 0], true), Some((MORE_SLAB_ITEM + 9, 6)));
+        assert!(!RECIPES.iter().any(|r| r.ins == [(ss, 6)] && stair_material(r.out.0).is_some()), "no smooth stone stairs, as in Minecraft");
+        // concrete powder, and glazed terracotta from the furnace
+        assert_eq!(made([SAND, SAND, SAND, SAND, GRAVEL, GRAVEL, GRAVEL, GRAVEL, DYE + 3], false), Some((cat(c::POWDER_ROW + 3), 8)));
+        assert_eq!(crate::furnace::smelt(cat(c::TERRACOTTA + 9)), Some((cat(c::GLAZED_ROW + 9), 1)));
+    }
+    #[test]
     fn grindstones_refund_levels_and_anvils_wear_out() {
         let mut inv = Inventory::new();
         inv.held = Stack { enchants: 2 | 1 << 2, ..Stack::new(IRON_PICK, 1) };

@@ -281,7 +281,17 @@ pub const TRAP_TOP: Block = 8;
 pub const STAIR_BASE: Block = 224;
 pub const STAIR_FLIP: Block = 4;
 /// the full block each slab / stair material is cut from
-pub const SHAPE_FULL: [Block; 8] = [PLANKS, BIRCH_PLANKS, COBBLE, STONE_BRICK, BRICK, SANDSTONE, SLATE, CINDER_PLANKS];
+/// (8.. are the block list's stones: stairs for the first `building::STAIR_MATS`, slabs
+/// for all of them, as in Minecraft)
+pub const SHAPE_FULL: [Block; 20] = {
+    use crate::catalogue::*;
+    [
+        PLANKS, BIRCH_PLANKS, COBBLE, STONE_BRICK, BRICK, SANDSTONE, SLATE, CINDER_PLANKS,
+        STONE, MOSSY_COBBLE, block(MOSSY_STONE_BRICKS), block(RED_SANDSTONE), block(SMOOTH_SANDSTONE), block(SMOOTH_RED_SANDSTONE),
+        block(POLISHED_SLATE), block(SLATE_BRICKS), block(SLATE_TILES),
+        block(SMOOTH_STONE), block(CUT_SANDSTONE), block(CUT_RED_SANDSTONE),
+    ]
+};
 
 /// Doors live only in the world (the item is `items::OAK_DOOR` / `BIRCH_DOOR`): one id per
 /// state. Bits above `DOOR_BASE`: 0-1 the cell side the closed door stands on (see
@@ -314,15 +324,17 @@ pub fn is_shaped(b: Block) -> bool {
 #[inline]
 pub fn is_slab(b: Block) -> bool {
     (SLAB..SLAB_END).contains(&b) || (SLAB_TOP..LADDER_BASE).contains(&b) || (crate::building::SLABS..crate::building::SLABS+8).contains(&b)
+        || (crate::building::MORE_SLABS..crate::building::MORE_SLABS_END).contains(&b)
 }
 #[inline]
 pub fn slab_top(b: Block) -> bool {
     (SLAB_TOP..LADDER_BASE).contains(&b) || (crate::building::SLABS+4..crate::building::SLABS+8).contains(&b)
+        || ((crate::building::MORE_SLABS..crate::building::MORE_SLABS_END).contains(&b) && (b - crate::building::MORE_SLABS) & 1 == 1)
 }
 /// index into `SHAPE_FULL`
 #[inline]
 pub fn slab_mat(b: Block) -> Block {
-    if b >= crate::building::SLABS {4+(b-crate::building::SLABS)%4} else if b >= SLAB_TOP { b - SLAB_TOP } else { b - SLAB }
+    if b >= crate::building::MORE_SLABS {8+(b-crate::building::MORE_SLABS)/2} else if b >= crate::building::SLABS {4+(b-crate::building::SLABS)%4} else if b >= SLAB_TOP { b - SLAB_TOP } else { b - SLAB }
 }
 #[inline]
 pub fn is_fence(b: Block) -> bool {
@@ -343,10 +355,11 @@ pub fn trap_open(b: Block) -> bool {
 #[inline]
 pub fn is_stairs(b: Block) -> bool {
     (STAIR_BASE..=255).contains(&b) || (crate::building::STAIRS..crate::building::STAIRS+32).contains(&b)
+        || (crate::building::MORE_STAIRS..crate::building::MORE_STAIRS_END).contains(&b)
 }
 #[inline]
 pub fn stair_mat(b: Block) -> Block {
-    if b>=crate::building::STAIRS {4+((b-crate::building::STAIRS)>>3)} else {(b-STAIR_BASE)>>3}
+    if b>=crate::building::MORE_STAIRS {8+((b-crate::building::MORE_STAIRS)>>3)} else if b>=crate::building::STAIRS {4+((b-crate::building::STAIRS)>>3)} else {(b-STAIR_BASE)>>3}
 }
 /// Blocks that keep the daylight out of what lies under them, like a full block does.
 #[inline]

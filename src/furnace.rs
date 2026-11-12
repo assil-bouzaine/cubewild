@@ -83,6 +83,8 @@ pub fn smelt(i: Item) -> Option<(Item, u32)> {
         SANDSTONE => (cat(c::SMOOTH_SANDSTONE), 1),
         i if i == cat(c::RED_SANDSTONE) => (cat(c::SMOOTH_RED_SANDSTONE), 1),
         i if i == cat(c::SLATE_BRICKS) => (cat(c::CRACKED_SLATE_BRICKS), 1),
+        // coloured terracotta glazes in the furnace
+        i if (cat(c::TERRACOTTA)..cat(c::TERRACOTTA + 16)).contains(&i) => (cat(c::GLAZED_ROW + (i - cat(c::TERRACOTTA)) as usize), 1),
         // old iron and gold gear melts down into a nugget, as in Minecraft
         i => match items::gear(i) {
             Some((_, items::Mat::Iron)) => (items::IRON_NUGGET, 1),

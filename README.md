@@ -165,6 +165,18 @@ stonecutter); walls join each other, panes, gates and solid blocks, stand a post
 they turn, and are too high to jump. A **lantern** placed against the underside of a
 block hangs from it.
 
+**More stairs and slabs**: stone, mossy cobblestone, mossy stone bricks, red sandstone,
+smooth sandstone, smooth red sandstone, polished slate, slate bricks and slate tiles have
+stairs and slabs; smooth stone and cut (red) sandstone have slabs only, as in Minecraft.
+Six blocks make four stairs and three make six slabs at a crafting table; the
+stonecutter makes one stair or two slabs from a block.
+
+**Concrete**: four sand, four gravel and a dye make eight **concrete powder**. It falls
+like sand, and where it touches water (placed beside it, fallen into it, or with water
+poured or running onto it) it sets into **concrete** of its colour. Coloured terracotta
+fired in a furnace turns into **glazed terracotta**, each colour with its own pattern
+(Minecraft's glazed tiles also turn to face you; these do not).
+
 **Changed to Minecraft's recipes**: iron and gold blocks take nine ingots (and give
 them back); stone bricks are made from stone; four sand make one sandstone; one
 cobblestone and a plant fibre make mossy cobblestone. **Clay** breaks into four clay

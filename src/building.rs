@@ -8,6 +8,14 @@ pub const FENCE_GATE: Block = 288; // axis bit 0, open bit 1, birch bit 2
 pub const SIGN: Block = 304; // four orientations
 pub const SLABS: Block = 320; // four lower halves, then four upper halves
 pub const STAIRS: Block = 352; // four materials, eight states each
+/// slabs of `SHAPE_FULL` materials 8..20: lower, then upper, for each
+pub const MORE_SLABS: Block = 704;
+pub const MORE_SLABS_END: Block = MORE_SLABS + 24;
+/// stairs of `SHAPE_FULL` materials 8..`STAIR_MATS`, eight states each (the base is a
+/// multiple of eight, so the stair shape code reads the side and flip bits the same)
+pub const MORE_STAIRS: Block = 728;
+pub const STAIR_MATS: Block = 17;
+pub const MORE_STAIRS_END: Block = MORE_STAIRS + (STAIR_MATS - 8) * 8;
 pub fn is_fence_gate(b: Block) -> bool {
     (FENCE_GATE..FENCE_GATE + 8).contains(&b)
 }
@@ -22,13 +30,15 @@ pub fn is_sign(b: Block) -> bool {
     (SIGN..SIGN + 4).contains(&b)
 }
 pub fn slab(mat: Block, top: bool) -> Block {
-    if mat < 4 { if top { SLAB_TOP + mat } else { SLAB + mat } } else { SLABS + mat - 4 + if top { 4 } else { 0 } }
+    if mat < 4 { if top { SLAB_TOP + mat } else { SLAB + mat } } else if mat < 8 { SLABS + mat - 4 + if top { 4 } else { 0 } } else { MORE_SLABS + (mat - 8) * 2 + top as Block }
 }
 pub fn stairs(mat: Block, side: Block, top: bool) -> Block {
     if mat < 4 {
         STAIR_BASE + mat * 8 + side + if top { STAIR_FLIP } else { 0 }
-    } else {
+    } else if mat < 8 {
         STAIRS + (mat - 4) * 8 + side + if top { STAIR_FLIP } else { 0 }
+    } else {
+        MORE_STAIRS + (mat - 8) * 8 + side + if top { STAIR_FLIP } else { 0 }
     }
 }
 

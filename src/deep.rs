@@ -625,7 +625,9 @@ mod layer_tests {
                 }
             }
         }
-        assert!(crate::textures::LAYERS <= 512);
+        // (the texture array is requested with exactly this many layers; Vulkan, DX12 and
+        // Metal drivers, the HD 620's included, allow 2048)
+        assert!(crate::textures::LAYERS <= 2048);
     }
 }
 

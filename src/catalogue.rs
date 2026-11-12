@@ -91,6 +91,7 @@ const fn shaped(mut def: Def, shape: Shape, light: u8, icon: Option<Pat>) -> Def
 const PICK: Option<Kind> = Some(Kind::Pick);
 const AXE: Option<Kind> = Some(Kind::Axe);
 const HOE: Option<Kind> = Some(Kind::Hoe);
+const SHOVEL: Option<Kind> = Some(Kind::Shovel);
 const B: Cat = Cat::Building;
 const U: Cat = Cat::Utility;
 
@@ -200,6 +201,71 @@ const WALLS: [Def; WALLS_LEN] = [
     shaped(d("Slate Tile Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Draw(tiles, SLATE_C)], 3.5, 6.0, PICK, 1, B), Shape::Wall, 0, None),
 ];
 
+/// Minecraft's concrete: strong, flat dye colours
+const CONCRETE_C: [[u8; 3]; 16] = [
+    [208, 214, 215], [224, 98, 0], [168, 48, 158], [36, 136, 198], [240, 174, 22], [94, 168, 24], [212, 100, 142], [54, 58, 62],
+    [124, 124, 114], [20, 118, 136], [100, 32, 156], [44, 46, 142], [96, 60, 32], [72, 90, 36], [142, 32, 32], [8, 10, 14],
+];
+/// the glazes: brighter than the plain terracottas they are fired from
+const TERRACOTTA_GLAZE: [[u8; 3]; 16] = [
+    [236, 240, 236], [230, 140, 50], [206, 90, 190], [90, 170, 220], [244, 200, 70], [140, 200, 60], [236, 150, 176], [90, 96, 100],
+    [170, 176, 176], [50, 140, 150], [120, 50, 170], [50, 70, 160], [130, 90, 60], [90, 120, 50], [180, 50, 44], [36, 30, 36],
+];
+const CONCRETES: [Def; 16] = [
+    d("White Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[0])], 1.8, 1.8, PICK, 1, B),
+    d("Orange Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[1])], 1.8, 1.8, PICK, 1, B),
+    d("Magenta Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[2])], 1.8, 1.8, PICK, 1, B),
+    d("Light Blue Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[3])], 1.8, 1.8, PICK, 1, B),
+    d("Yellow Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[4])], 1.8, 1.8, PICK, 1, B),
+    d("Lime Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[5])], 1.8, 1.8, PICK, 1, B),
+    d("Pink Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[6])], 1.8, 1.8, PICK, 1, B),
+    d("Gray Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[7])], 1.8, 1.8, PICK, 1, B),
+    d("Light Gray Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[8])], 1.8, 1.8, PICK, 1, B),
+    d("Cyan Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[9])], 1.8, 1.8, PICK, 1, B),
+    d("Purple Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[10])], 1.8, 1.8, PICK, 1, B),
+    d("Blue Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[11])], 1.8, 1.8, PICK, 1, B),
+    d("Brown Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[12])], 1.8, 1.8, PICK, 1, B),
+    d("Green Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[13])], 1.8, 1.8, PICK, 1, B),
+    d("Red Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[14])], 1.8, 1.8, PICK, 1, B),
+    d("Black Concrete", "Concrete powder set by water. Smooth and bright.", &[Pat::Draw(concrete, CONCRETE_C[15])], 1.8, 1.8, PICK, 1, B),
+];
+const POWDERS: [Def; 16] = [
+    d("White Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[0])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Orange Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[1])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Magenta Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[2])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Light Blue Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[3])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Yellow Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[4])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Lime Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[5])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Pink Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[6])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Gray Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[7])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Light Gray Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[8])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Cyan Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[9])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Purple Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[10])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Blue Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[11])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Brown Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[12])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Green Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[13])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Red Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[14])], 0.5, 0.5, SHOVEL, 0, B),
+    d("Black Concrete Powder", "Four sand, four gravel and a dye make eight. Falls like sand, and sets into concrete where it touches water.", &[Pat::Draw(powder, CONCRETE_C[15])], 0.5, 0.5, SHOVEL, 0, B),
+];
+const GLAZED: [Def; 16] = [
+    d("White Glazed Terracotta", "White terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[0])], 1.4, 1.4, PICK, 1, B),
+    d("Orange Glazed Terracotta", "Orange terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[1])], 1.4, 1.4, PICK, 1, B),
+    d("Magenta Glazed Terracotta", "Magenta terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[2])], 1.4, 1.4, PICK, 1, B),
+    d("Light Blue Glazed Terracotta", "Light Blue terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[3])], 1.4, 1.4, PICK, 1, B),
+    d("Yellow Glazed Terracotta", "Yellow terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[4])], 1.4, 1.4, PICK, 1, B),
+    d("Lime Glazed Terracotta", "Lime terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[5])], 1.4, 1.4, PICK, 1, B),
+    d("Pink Glazed Terracotta", "Pink terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[6])], 1.4, 1.4, PICK, 1, B),
+    d("Gray Glazed Terracotta", "Gray terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[7])], 1.4, 1.4, PICK, 1, B),
+    d("Light Gray Glazed Terracotta", "Light Gray terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[8])], 1.4, 1.4, PICK, 1, B),
+    d("Cyan Glazed Terracotta", "Cyan terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[9])], 1.4, 1.4, PICK, 1, B),
+    d("Purple Glazed Terracotta", "Purple terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[10])], 1.4, 1.4, PICK, 1, B),
+    d("Blue Glazed Terracotta", "Blue terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[11])], 1.4, 1.4, PICK, 1, B),
+    d("Brown Glazed Terracotta", "Brown terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[12])], 1.4, 1.4, PICK, 1, B),
+    d("Green Glazed Terracotta", "Green terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[13])], 1.4, 1.4, PICK, 1, B),
+    d("Red Glazed Terracotta", "Red terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[14])], 1.4, 1.4, PICK, 1, B),
+    d("Black Glazed Terracotta", "Black terracotta fired in a furnace.", &[Pat::Draw(glazed, TERRACOTTA_GLAZE[15])], 1.4, 1.4, PICK, 1, B),
+];
+
 /// Joins the groups of rows into one table, at compile time.
 const fn concat<const N: usize>(groups: &[&[Def]]) -> [Def; N] {
     let mut all = [d("", "", &[], 0.0, 0.0, None, 0, B); N];
@@ -268,7 +334,9 @@ pub const DEFS: &[Def] = &{
         shaped(d("Lantern", "Eight iron nuggets round a torch. A steady light that stands on a block.",
             &[Pat::Draw(lantern, [56, 58, 66])], 3.5, 3.5, PICK, 1, U), Shape::Lantern, 15, Some(Pat::Draw(lantern_icon, [56, 58, 66]))),
     ];
-    concat::<{ HEAD_LEN + 16 + TAIL_LEN + PHASE2_LEN + 16 * 3 + WALLS_LEN }>(&[&head, &TERRACOTTAS, &tail, &PHASE2, &STAINED_GLASS, &STAINED_PANES, &CARPETS, &WALLS])
+    concat::<{ HEAD_LEN + 16 + TAIL_LEN + PHASE2_LEN + 16 * 3 + WALLS_LEN + 16 * 3 }>(&[
+        &head, &TERRACOTTAS, &tail, &PHASE2, &STAINED_GLASS, &STAINED_PANES, &CARPETS, &WALLS, &CONCRETES, &POWDERS, &GLAZED,
+    ])
 };
 
 // row numbers, for recipes and behaviour
@@ -321,6 +389,10 @@ pub const CARPET_ROW: usize = 88;
 /// cobblestone, mossy cobblestone, stone brick, mossy stone brick, brick, sandstone,
 /// red sandstone, slate, polished slate, slate brick, slate tile
 pub const WALL_ROW: usize = 104;
+/// + colour
+pub const CONCRETE_ROW: usize = 115;
+pub const POWDER_ROW: usize = 131;
+pub const GLAZED_ROW: usize = 147;
 
 pub const fn item(row: usize) -> Item {
     ITEM0 + row as Item
@@ -868,6 +940,37 @@ fn campfire_icon(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
         _ => CLEAR,
     }
 }
+fn concrete(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    sh(c, 0.96 + hash(x, y, 50) * 0.06)
+}
+fn powder(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let speck = hash(x, y, 51);
+    let base = mix(c, [235, 230, 220], 0.22);
+    sh(base, if speck > 0.85 { 0.78 } else if speck < 0.12 { 1.12 } else { 0.94 + speck * 0.08 })
+}
+/// a glazed tile: a pattern of its own for each colour, from a few motifs turned and mixed
+fn glazed(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let seed = (c[0] as u32) * 7 + (c[1] as u32) * 13 + (c[2] as u32) * 31;
+    let (u, v) = (x as f32 - 7.5, y as f32 - 7.5);
+    let motif = seed % 4;
+    let (p, q) = if (seed >> 2) % 2 == 0 { (u, v) } else { (v, -u) };
+    let ring = (p.abs().max(q.abs()) * 0.9 + (p + q).abs() * 0.15) as i32;
+    let band = match motif {
+        0 => (ring % 3 == 0) as i32,
+        1 => ((p * 0.6).sin() * (q * 0.6).cos() > 0.25) as i32,
+        2 => ((p - q).abs() < 2.0 || (p + q).abs() < 2.0) as i32 + (ring == 7) as i32,
+        _ => (((p * p + q * q).sqrt() as i32) % 4 < 2) as i32,
+    };
+    let accent = mix(c, if c.iter().map(|&v| v as u32).sum::<u32>() > 420 { [60, 70, 90] } else { [240, 236, 220] }, 0.6);
+    let edge = x == 0 || y == 0 || x == 15 || y == 15;
+    if edge {
+        sh(c, 0.75)
+    } else if band > 0 {
+        sh(accent, 0.95 + hash(x, y, 52) * 0.08)
+    } else {
+        sh(c, 0.95 + hash(x, y, 53) * 0.08)
+    }
+}
 fn lantern_icon(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
     match (x, y) {
         (7..=8, 1..=2) | (6..=9, 3..=4) => sh(c, 1.0),
@@ -910,7 +1013,10 @@ mod tests {
         assert_eq!(DEFS[STAINED_GLASS_ROW + 15].name, "Black Stained Glass");
         assert_eq!(DEFS[STAINED_PANE_ROW].name, "White Stained Glass Pane");
         assert_eq!(DEFS[CARPET_ROW + 14].name, "Red Carpet");
-        assert_eq!((DEFS[WALL_ROW].name, DEFS[DEFS.len() - 1].name), ("Cobblestone Wall", "Slate Tile Wall"));
+        assert_eq!((DEFS[WALL_ROW].name, DEFS[WALL_ROW + 10].name), ("Cobblestone Wall", "Slate Tile Wall"));
+        assert_eq!((DEFS[CONCRETE_ROW].name, DEFS[POWDER_ROW + 15].name), ("White Concrete", "Black Concrete Powder"));
+        assert_eq!(DEFS[DEFS.len() - 1].name, "Black Glazed Terracotta");
+        assert_eq!(DEFS.len(), GLAZED_ROW + 16);
         assert_eq!(item_of_block(block(HANGING_LANTERN)), Some(item(LANTERN)));
         assert_eq!(drawn().len(), layer_count());
         for (r, def) in DEFS.iter().enumerate() {

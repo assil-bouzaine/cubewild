@@ -11,7 +11,38 @@ use std::path::Path;
 
 /// Loose blocks: they fall when nothing holds them up.
 pub fn loose(b: Block) -> bool {
-    matches!(b, SAND | RED_SAND | GRAVEL)
+    matches!(b, SAND | RED_SAND | GRAVEL) || powder_colour(b).is_some()
+}
+
+/// The colour of a concrete powder block.
+pub fn powder_colour(b: Block) -> Option<usize> {
+    use crate::catalogue::{block, POWDER_ROW};
+    (block(POWDER_ROW)..block(POWDER_ROW + 16)).contains(&b).then(|| (b - block(POWDER_ROW)) as usize)
+}
+
+/// Concrete powder sets where it touches water, as in Minecraft: the powder among the
+/// places edited (`touched`), and powder beside water among them. Returns the edits.
+pub fn set_concrete(world: &World, touched: &[(IVec3, Block)]) -> Vec<(IVec3, Block)> {
+    use crate::catalogue::{block, CONCRETE_ROW};
+    const AROUND: [IVec3; 6] = [IVec3::X, IVec3::NEG_X, IVec3::Y, IVec3::NEG_Y, IVec3::Z, IVec3::NEG_Z];
+    let get = |c: IVec3| world.get_block(c.x, c.y, c.z);
+    let mut out: Vec<(IVec3, Block)> = Vec::new();
+    let harden = |c: IVec3, out: &mut Vec<(IVec3, Block)>| {
+        if let Some(colour) = powder_colour(get(c)) {
+            if AROUND.iter().any(|&d| is_water(get(c + d))) && !out.iter().any(|e| e.0 == c) {
+                out.push((c, block(CONCRETE_ROW + colour)));
+            }
+        }
+    };
+    for &(p, _) in touched {
+        harden(p, &mut out);
+        if is_water(get(p)) {
+            for d in AROUND {
+                harden(p + d, &mut out);
+            }
+        }
+    }
+    out
 }
 
 /// What a loose block can rest on.
@@ -451,7 +482,32 @@ mod tests {
     #[test]
     fn sand_and_gravel_fall_and_nothing_else_does() {
         assert!(loose(SAND) && loose(GRAVEL) && loose(RED_SAND));
+        use crate::catalogue::{block, CONCRETE_ROW, POWDER_ROW};
+        assert!(loose(block(POWDER_ROW + 5)) && !loose(block(CONCRETE_ROW + 5)));
         assert!(!loose(DIRT) && !loose(STONE) && !loose(ASH));
         assert!(holds(STONE) && holds(SLAB) && !holds(AIR) && !holds(WATER) && !holds(TORCH) && !holds(TALL_GRASS));
     }
+
+#[cfg(test)]
+mod concrete_tests {
+    use super::*;
+    use crate::catalogue::{block, CONCRETE_ROW, POWDER_ROW};
+    #[test]
+    fn powder_sets_where_water_touches_it_and_nowhere_else() {
+        let red = block(POWDER_ROW + 14);
+        let world = World::flat(|x, y, z| match (x, y, z) {
+            (0, 10, 0) | (5, 10, 5) | (9, 10, 9) => Some(red),
+            (1, 10, 0) => Some(WATER),
+            (5, 11, 5) => Some(WATER_FLOW),
+            _ => None,
+        });
+        // placed powder beside water sets; water running onto powder sets it too
+        let set = set_concrete(&world, &[(IVec3::new(0, 10, 0), AIR), (IVec3::new(5, 11, 5), AIR), (IVec3::new(9, 10, 9), AIR)]);
+        assert_eq!(set.len(), 2);
+        assert!(set.contains(&(IVec3::new(0, 10, 0), block(CONCRETE_ROW + 14))));
+        assert!(set.contains(&(IVec3::new(5, 10, 5), block(CONCRETE_ROW + 14))));
+        assert!(set_concrete(&world, &[(IVec3::new(9, 10, 9), AIR)]).is_empty());
+    }
+}
+
 }

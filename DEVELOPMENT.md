@@ -56,15 +56,17 @@ stained glass panes (panes and bars share the glass pane's flat quads; stained g
 drawn in the translucent pass), sixteen carpets, eleven walls, the hanging lantern (a
 state row that drops the lantern). Shaped blocks may now have up to eight boxes.
 
+Done (phase 3): stairs and slabs for the block list's stones (`SHAPE_FULL` materials
+8.., world ids 704.. and 728..; items 240..261), sixteen concrete, concrete powder (falls;
+`settle::set_concrete` sets it beside water each frame from the edited places) and glazed
+terracotta (furnace). The texture array may now hold up to 2048 layers.
+
 Next phases, by how well they fit:
-1. Brewing stand (needs potions); stairs and slabs for the new stone families (needs
-   new stair and slab families).
-2. Concrete and concrete powder (16 each; powder falls and sets in water), glazed
-   terracotta.
-3. New wood types (spruce, jungle, acacia, dark oak) for the trees already generated:
+1. New wood types (spruce, jungle, acacia, dark oak) for the trees already generated:
    logs, planks, stairs, slabs, fences, doors, signs.
-4. Nature blocks: pumpkins, melons, flowers, vines, lily pads, mushroom blocks, coral.
-5. Redstone (54 blocks) once there is a power system.
+2. Nature blocks: pumpkins, melons, flowers, vines, lily pads, mushroom blocks, coral.
+3. Brewing stand (needs potions); facing for glazed terracotta.
+4. Redstone (54 blocks) once there is a power system.
 Stack size stays 99 for now: Minecraft's 64 would cut saved stacks above 64 on load
 (`loot::parse_stack` clamps), so it needs a split-on-load migration first.
 

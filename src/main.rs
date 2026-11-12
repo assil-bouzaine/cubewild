@@ -2280,6 +2280,11 @@ impl Game {
                     self.pickups.pop(&mut self.rng, p.as_vec3() + 0.5, Stack::new(drop, 1));
                 }
             }
+            // concrete powder sets where water touches it
+            let set = settle::set_concrete(&self.world, &touched);
+            if !set.is_empty() {
+                self.world.set_many(&set);
+            }
             let body = (self.player.pos, self.player.height());
             let settled = self.settle.update(&mut self.world, &mut self.rng, dt, &touched, body);
             for (at, b) in settled.landed {

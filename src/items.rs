@@ -137,6 +137,14 @@ pub const BRICK_ITEM: Item = 234;
 pub const REED_ITEM: Item = 235;
 /// end of the plain items with icons in `textures::MORE_ICONS`
 pub const PLAIN_END: Item = 236;
+/// slabs and stairs of `SHAPE_FULL` materials 8.. (see `building::MORE_SLABS`)
+pub const MORE_SLAB_ITEM: Item = 240;
+pub const MORE_STAIRS_ITEM: Item = 252;
+pub const MORE_SHAPES_END: Item = 261;
+const MORE_SLAB_NAMES: [&str; 12] = ["Stone Slab", "Mossy Cobblestone Slab", "Mossy Stone Brick Slab", "Red Sandstone Slab", "Smooth Sandstone Slab",
+    "Smooth Red Sandstone Slab", "Polished Slate Slab", "Slate Brick Slab", "Slate Tile Slab", "Smooth Stone Slab", "Cut Sandstone Slab", "Cut Red Sandstone Slab"];
+const MORE_STAIR_NAMES: [&str; 9] = ["Stone Stairs", "Mossy Cobblestone Stairs", "Mossy Stone Brick Stairs", "Red Sandstone Stairs", "Smooth Sandstone Stairs",
+    "Smooth Red Sandstone Stairs", "Polished Slate Stairs", "Slate Brick Stairs", "Slate Tile Stairs"];
 /// the catalogue's block items (`catalogue::ITEM0`..) come last
 pub const ITEM_END: Item = crate::catalogue::ITEM_END;
 pub const fn cat(row: usize) -> Item {
@@ -151,7 +159,7 @@ pub const ICON_FOOD: u32 = ICON_BASE + 101;
 pub const ICON_AIR: u32 = ICON_BASE + 102;
 
 pub fn is_block(i: Item) -> bool {
-    if crate::catalogue::row_of_item(i).is_some() || i == REED_ITEM {
+    if crate::catalogue::row_of_item(i).is_some() || i == REED_ITEM || (MORE_SLAB_ITEM..MORE_SHAPES_END).contains(&i) {
         return true;
     }
     (OAK_GATE..BOWL).contains(&i) || (ANVIL_ITEM..=ENCHANTING_ITEM).contains(&i) || (i != AIR && i < 64) || is_wool_item(i) || (DEEP_ITEM..DEEP_ITEM + DEEP_BLOCKS).contains(&i) || is_extra_item(i) || is_sapling_item(i)
@@ -170,8 +178,8 @@ pub fn is_wool_item(i: Item) -> bool {
 }
 
 /// The block an item puts down (most block items are their own block).
-pub fn slab_material(i:Item)->Option<Block> {if (SLAB..SLAB_END).contains(&i) {Some(i-SLAB)} else if (EXTRA_SLAB..EXTRA_SLAB+4).contains(&i) {Some(4+i-EXTRA_SLAB)} else {None}}
-pub fn stair_material(i:Item)->Option<Block> {if (STAIRS..STAIRS+4).contains(&i) {Some(i-STAIRS)} else if (EXTRA_STAIRS..EXTRA_STAIRS+4).contains(&i) {Some(4+i-EXTRA_STAIRS)} else {None}}
+pub fn slab_material(i:Item)->Option<Block> {if (SLAB..SLAB_END).contains(&i) {Some(i-SLAB)} else if (EXTRA_SLAB..EXTRA_SLAB+4).contains(&i) {Some(4+i-EXTRA_SLAB)} else if (MORE_SLAB_ITEM..MORE_STAIRS_ITEM).contains(&i) {Some(8+i-MORE_SLAB_ITEM)} else {None}}
+pub fn stair_material(i:Item)->Option<Block> {if (STAIRS..STAIRS+4).contains(&i) {Some(i-STAIRS)} else if (EXTRA_STAIRS..EXTRA_STAIRS+4).contains(&i) {Some(4+i-EXTRA_STAIRS)} else if (MORE_STAIRS_ITEM..MORE_SHAPES_END).contains(&i) {Some(8+i-MORE_STAIRS_ITEM)} else {None}}
 pub fn block_of(i: Item) -> Block {
     if let Some(r) = crate::catalogue::row_of_item(i) {
         return crate::catalogue::block(r);
@@ -205,12 +213,19 @@ pub fn valid(i: Item) -> bool {
     (i >= GRASS && i <= LAST_BLOCK && i != WATER && i != BEDROCK && !(WHEAT_0..=WHEAT_3).contains(&i))
         || (ICE..=FLOWER_BLUE).contains(&i)
         || (64..PLAIN_END).contains(&i)
+        || (MORE_SLAB_ITEM..MORE_SHAPES_END).contains(&i)
         || crate::catalogue::row_of_item(i).is_some_and(crate::catalogue::has_item)
 }
 
 pub fn name(i: Item) -> &'static str {
     if let Some(r) = crate::catalogue::row_of_item(i) {
         return crate::catalogue::DEFS[r].name;
+    }
+    if (MORE_SLAB_ITEM..MORE_STAIRS_ITEM).contains(&i) {
+        return MORE_SLAB_NAMES[(i - MORE_SLAB_ITEM) as usize];
+    }
+    if (MORE_STAIRS_ITEM..MORE_SHAPES_END).contains(&i) {
+        return MORE_STAIR_NAMES[(i - MORE_STAIRS_ITEM) as usize];
     }
     match i {
         PAPER => "Paper",
@@ -678,6 +693,12 @@ pub fn desc(i: Item) -> &'static str {
     }
     if let Some(r) = crate::catalogue::row_of_item(i) {
         return crate::catalogue::DEFS[r].desc;
+    }
+    if slab_material(i).is_some() {
+        return "Half a block high. Two of a kind make a full block again.";
+    }
+    if stair_material(i).is_some() {
+        return "Walk up without jumping. Place high for upside down.";
     }
     match i {
         PAPER => "Three reeds make three sheets. For books and maps.",
@@ -1174,6 +1195,65 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building, (cat(c::WALL_ROW + 9), 1), &[(cat(c::SLATE_BRICKS), 1)], STONECUTTER),
     r(Cat::Building, (cat(c::WALL_ROW + 10), 6), &[(cat(c::SLATE_TILES), 6)], WORKBENCH),
     r(Cat::Building, (cat(c::WALL_ROW + 10), 1), &[(cat(c::SLATE_TILES), 1)], STONECUTTER),
+    // ---- phase 3: stairs and slabs of the block list's stones, and concrete
+    r(Cat::Building, (MORE_SLAB_ITEM + 0, 6), &[(STONE, 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 0, 2), &[(STONE, 1)], STONECUTTER),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 0, 4), &[(STONE, 6)], WORKBENCH),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 0, 1), &[(STONE, 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 1, 6), &[(MOSSY_COBBLE, 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 1, 2), &[(MOSSY_COBBLE, 1)], STONECUTTER),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 1, 4), &[(MOSSY_COBBLE, 6)], WORKBENCH),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 1, 1), &[(MOSSY_COBBLE, 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 2, 6), &[(cat(c::MOSSY_STONE_BRICKS), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 2, 2), &[(cat(c::MOSSY_STONE_BRICKS), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 2, 4), &[(cat(c::MOSSY_STONE_BRICKS), 6)], WORKBENCH),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 2, 1), &[(cat(c::MOSSY_STONE_BRICKS), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 3, 6), &[(cat(c::RED_SANDSTONE), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 3, 2), &[(cat(c::RED_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 3, 4), &[(cat(c::RED_SANDSTONE), 6)], WORKBENCH),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 3, 1), &[(cat(c::RED_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 4, 6), &[(cat(c::SMOOTH_SANDSTONE), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 4, 2), &[(cat(c::SMOOTH_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 4, 4), &[(cat(c::SMOOTH_SANDSTONE), 6)], WORKBENCH),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 4, 1), &[(cat(c::SMOOTH_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 5, 6), &[(cat(c::SMOOTH_RED_SANDSTONE), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 5, 2), &[(cat(c::SMOOTH_RED_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 5, 4), &[(cat(c::SMOOTH_RED_SANDSTONE), 6)], WORKBENCH),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 5, 1), &[(cat(c::SMOOTH_RED_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 6, 6), &[(cat(c::POLISHED_SLATE), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 6, 2), &[(cat(c::POLISHED_SLATE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 6, 4), &[(cat(c::POLISHED_SLATE), 6)], WORKBENCH),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 6, 1), &[(cat(c::POLISHED_SLATE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 7, 6), &[(cat(c::SLATE_BRICKS), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 7, 2), &[(cat(c::SLATE_BRICKS), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 7, 4), &[(cat(c::SLATE_BRICKS), 6)], WORKBENCH),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 7, 1), &[(cat(c::SLATE_BRICKS), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 8, 6), &[(cat(c::SLATE_TILES), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 8, 2), &[(cat(c::SLATE_TILES), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 8, 4), &[(cat(c::SLATE_TILES), 6)], WORKBENCH),
+    r(Cat::Building, (MORE_STAIRS_ITEM + 8, 1), &[(cat(c::SLATE_TILES), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 9, 6), &[(cat(c::SMOOTH_STONE), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 9, 2), &[(cat(c::SMOOTH_STONE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 10, 6), &[(cat(c::CUT_SANDSTONE), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 10, 2), &[(cat(c::CUT_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (MORE_SLAB_ITEM + 11, 6), &[(cat(c::CUT_RED_SANDSTONE), 3)], WORKBENCH),
+    r(Cat::Building, (MORE_SLAB_ITEM + 11, 2), &[(cat(c::CUT_RED_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::POWDER_ROW + 0), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 0, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 1), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 1, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 2), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 2, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 3), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 3, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 4), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 4, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 5), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 5, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 6), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 6, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 7), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 7, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 8), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 8, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 9), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 9, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 10), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 10, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 11), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 11, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 12), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 12, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 13), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 13, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 14), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 14, 1)], AIR),
+    r(Cat::Building, (cat(c::POWDER_ROW + 15), 8), &[(SAND, 4), (GRAVEL, 4), (DYE + 15, 1)], AIR),
 ];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -1537,6 +1617,8 @@ pub fn item_of(b: Block) -> Item {
     }
     if crate::building::is_fence_gate(b) {return OAK_GATE+((b-crate::building::FENCE_GATE)>>2);}
     if crate::building::is_sign(b) {return SIGN_ITEM;}
+    if is_slab(b) && slab_mat(b)>=8 {return MORE_SLAB_ITEM+slab_mat(b)-8;}
+    if is_stairs(b) && stair_mat(b)>=8 {return MORE_STAIRS_ITEM+stair_mat(b)-8;}
     if is_slab(b) && slab_mat(b)>=4 {return EXTRA_SLAB+slab_mat(b)-4;}
     if is_stairs(b) && stair_mat(b)>=4 {return EXTRA_STAIRS+stair_mat(b)-4;}
     if let Some((item, _)) = crate::farming::harvest(b) { return item; }
