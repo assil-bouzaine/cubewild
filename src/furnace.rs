@@ -17,7 +17,8 @@ pub const COOK: f32 = 6.0;
 
 #[derive(Clone, Copy, Default)]
 pub struct Furnace {
-    pub slots: [Stack; 3],
+    /// input, fuel, output (a campfire uses all four as places to cook)
+    pub slots: [Stack; 4],
     /// seconds of fire left, and how long the last piece of fuel lasted
     pub burn: f32,
     pub burn_max: f32,
@@ -25,9 +26,16 @@ pub struct Furnace {
     pub cook: f32,
     /// experience earned by what it made, handed out when the output is taken
     pub xp: f32,
-    /// 0 furnace, `SMOKER` (food only) or `BLAST` (ore and metal only), both twice as fast
+    /// 0 furnace, `SMOKER` (food only) or `BLAST` (ore and metal only), both twice as
+    /// fast, or `CAMPFIRE`
     pub kind: u8,
+    /// a campfire: seconds each of its four places has been cooking
+    pub timers: [f32; 4],
 }
+
+pub const CAMPFIRE: u8 = 3;
+/// seconds a campfire takes to cook one thing (Minecraft's 30)
+pub const CAMPFIRE_COOK: f32 = 30.0;
 
 pub const SMOKER: u8 = 1;
 pub const BLAST: u8 = 2;
@@ -38,6 +46,7 @@ pub fn kind_of(b: Block) -> Option<u8> {
         FURNACE => Some(0),
         b if b == block(SMOKER_ROW) => Some(SMOKER),
         b if b == block(BLAST_FURNACE) => Some(BLAST),
+        b if crate::catalogue::is_campfire(b) => Some(CAMPFIRE),
         _ => None,
     }
 }
@@ -46,7 +55,7 @@ pub fn kind_of(b: Block) -> Option<u8> {
 pub fn accepts(kind: u8, input: Item) -> bool {
     let Some((out, _)) = smelt(input) else { return false };
     match kind {
-        SMOKER => items::food(out) > 0.0,
+        SMOKER | CAMPFIRE => items::food(out) > 0.0,
         BLAST => matches!(out, items::IRON_INGOT | items::GOLD_INGOT | items::PYRE_INGOT | items::IRON_NUGGET | items::GOLD_NUGGET),
         _ => true,
     }
@@ -133,7 +142,39 @@ impl Furnace {
     }
 
     /// Runs the furnace for `dt` seconds.
+    /// Puts one of `st` on a campfire's free place. True if it took it.
+    pub fn put_on(&mut self, st: Stack) -> bool {
+        let Some(i) = self.slots.iter().position(|s| s.is_empty()) else { return false };
+        self.slots[i] = Stack { n: 1, ..st };
+        self.timers[i] = 0.0;
+        true
+    }
+
+    /// A campfire's finished food, taken off it.
+    pub fn take_cooked(&mut self) -> Vec<Stack> {
+        let mut done = Vec::new();
+        for i in 0..4 {
+            if !self.slots[i].is_empty() && self.timers[i] >= CAMPFIRE_COOK {
+                if let Some((out, n)) = smelt(self.slots[i].item) {
+                    done.push(Stack::new(out, n));
+                    self.xp += smelt_xp(out) * n as f32;
+                }
+                self.slots[i] = Stack::default();
+                self.timers[i] = 0.0;
+            }
+        }
+        done
+    }
+
     pub fn tick(&mut self, dt: f32) {
+        if self.kind == CAMPFIRE {
+            for i in 0..4 {
+                if !self.slots[i].is_empty() {
+                    self.timers[i] = (self.timers[i] + dt).min(CAMPFIRE_COOK);
+                }
+            }
+            return;
+        }
         // (a smoker or blast furnace does everything twice as fast, fuel included)
         let mut dt = if self.kind == 0 { dt } else { dt * 2.0 };
         // (a long `dt` after loading is worked through in cook-sized steps)
@@ -198,6 +239,9 @@ pub fn encode(furnaces: &Furnaces) -> String {
         if f.kind != 0 {
             s += &format!(" k{}", f.kind);
         }
+        for (i, t) in f.timers.iter().enumerate().filter(|(_, t)| **t > 0.0) {
+            s += &format!(" c{i}={t}");
+        }
         for (i, st) in f.slots.iter().enumerate().filter(|(_, st)| !st.is_empty()) {
             s += &format!(" {}:{}:{}:{}", i, st.item, st.n, st.persist_wear());
         }
@@ -218,11 +262,19 @@ pub fn load(path: &Path) -> Furnaces {
         let mut f = Furnace { burn: nums[0].max(0.0), burn_max: nums[1].max(0.0), cook: nums[2].clamp(0.0, COOK), xp: nums[3].max(0.0), ..Default::default() };
         for t in parts {
             if let Some(k) = t.strip_prefix('k').and_then(|k| k.parse::<u8>().ok()) {
-                f.kind = k.min(BLAST);
+                f.kind = k.min(CAMPFIRE);
+                continue;
+            }
+            if let Some((i, secs)) = t.strip_prefix('c').and_then(|c| c.split_once('=')) {
+                if let (Ok(i), Ok(secs)) = (i.parse::<usize>(), secs.parse::<f32>()) {
+                    if i < 4 && secs.is_finite() {
+                        f.timers[i] = secs.clamp(0.0, CAMPFIRE_COOK);
+                    }
+                }
                 continue;
             }
             let v: Vec<u32> = t.split(':').filter_map(|x| x.parse().ok()).collect();
-            if v.len() >= 4 && (v[0] as usize) < 3 {
+            if v.len() >= 4 && (v[0] as usize) < 4 {
                 if let Some(st) = crate::loot::parse_stack(v[1], v[2], v[3]) {
                     f.slots[v[0] as usize] = st;
                 }
@@ -281,6 +333,30 @@ mod tests {
         assert_eq!(smelt(STONE), Some((items::cat(crate::catalogue::SMOOTH_STONE), 1)));
         assert_eq!(fuel(items::cat(crate::catalogue::COAL_BLOCK)), 800.0);
         assert_eq!(fuel(LOG), 15.0);
+    }
+
+    #[test]
+    fn campfires_cook_four_foods_slowly_without_fuel() {
+        let mut f = Furnace { kind: CAMPFIRE, ..Default::default() };
+        assert!(accepts(CAMPFIRE, items::MEAT) && !accepts(CAMPFIRE, IRON_ORE) && !accepts(CAMPFIRE, items::COOKED_MEAT));
+        for _ in 0..4 {
+            assert!(f.put_on(Stack::new(items::MEAT, 5)));
+        }
+        assert!(!f.put_on(Stack::new(items::RAW_FISH, 1)), "four places only");
+        assert!(f.slots.iter().all(|s| s.n == 1));
+        f.tick(CAMPFIRE_COOK - 1.0);
+        assert!(f.take_cooked().is_empty());
+        // saved part way, it carries on where it was
+        let mut all = Furnaces::default();
+        all.insert(IVec3::ZERO, f);
+        let dir = crate::save::tests::TestDir::new("campfire");
+        let path = dir.0.join("furnaces.txt");
+        std::fs::write(&path, encode(&all)).unwrap();
+        let mut f = load(&path)[&IVec3::ZERO];
+        assert_eq!((f.kind, f.timers[3]), (CAMPFIRE, CAMPFIRE_COOK - 1.0));
+        f.tick(1.0);
+        assert_eq!(f.take_cooked(), vec![Stack::new(items::COOKED_MEAT, 1); 4]);
+        assert!(f.slots.iter().all(|s| s.is_empty()) && f.xp > 0.0);
     }
 
     #[test]

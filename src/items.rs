@@ -205,7 +205,7 @@ pub fn valid(i: Item) -> bool {
     (i >= GRASS && i <= LAST_BLOCK && i != WATER && i != BEDROCK && !(WHEAT_0..=WHEAT_3).contains(&i))
         || (ICE..=FLOWER_BLUE).contains(&i)
         || (64..PLAIN_END).contains(&i)
-        || crate::catalogue::row_of_item(i).is_some()
+        || crate::catalogue::row_of_item(i).is_some_and(crate::catalogue::has_item)
 }
 
 pub fn name(i: Item) -> &'static str {
@@ -1083,6 +1083,97 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building, (cat(c::SLATE_BRICKS), 1), &[(cat(c::POLISHED_SLATE), 1)], STONECUTTER),
     r(Cat::Building, (cat(c::SLATE_TILES), 1), &[(cat(c::POLISHED_SLATE), 1)], STONECUTTER),
     r(Cat::Building, (cat(c::SLATE_TILES), 1), &[(cat(c::SLATE_BRICKS), 1)], STONECUTTER),
+    // ---- phase 2: campfires, bars, stained glass, carpets and walls
+    r(Cat::Utility, (cat(c::CAMPFIRE), 1), &[(STICK, 3), (COAL, 1), (LOG, 3)], WORKBENCH),
+    r(Cat::Utility, (cat(c::CAMPFIRE), 1), &[(STICK, 3), (COAL, 1), (BIRCH_LOG, 3)], WORKBENCH),
+    r(Cat::Utility, (cat(c::SOUL_CAMPFIRE), 1), &[(STICK, 3), (DEEP_ITEM + 2, 1), (LOG, 3)], WORKBENCH),
+    r(Cat::Building, (cat(c::IRON_BARS), 16), &[(IRON_INGOT, 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 0), 8), &[(GLASS, 8), (DYE + 0, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 1), 8), &[(GLASS, 8), (DYE + 1, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 2), 8), &[(GLASS, 8), (DYE + 2, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 3), 8), &[(GLASS, 8), (DYE + 3, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 4), 8), &[(GLASS, 8), (DYE + 4, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 5), 8), &[(GLASS, 8), (DYE + 5, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 6), 8), &[(GLASS, 8), (DYE + 6, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 7), 8), &[(GLASS, 8), (DYE + 7, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 8), 8), &[(GLASS, 8), (DYE + 8, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 9), 8), &[(GLASS, 8), (DYE + 9, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 10), 8), &[(GLASS, 8), (DYE + 10, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 11), 8), &[(GLASS, 8), (DYE + 11, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 12), 8), &[(GLASS, 8), (DYE + 12, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 13), 8), &[(GLASS, 8), (DYE + 13, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 14), 8), &[(GLASS, 8), (DYE + 14, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_GLASS_ROW + 15), 8), &[(GLASS, 8), (DYE + 15, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 0), 16), &[(cat(c::STAINED_GLASS_ROW + 0), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 0), 8), &[(PANE, 8), (DYE + 0, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 1), 16), &[(cat(c::STAINED_GLASS_ROW + 1), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 1), 8), &[(PANE, 8), (DYE + 1, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 2), 16), &[(cat(c::STAINED_GLASS_ROW + 2), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 2), 8), &[(PANE, 8), (DYE + 2, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 3), 16), &[(cat(c::STAINED_GLASS_ROW + 3), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 3), 8), &[(PANE, 8), (DYE + 3, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 4), 16), &[(cat(c::STAINED_GLASS_ROW + 4), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 4), 8), &[(PANE, 8), (DYE + 4, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 5), 16), &[(cat(c::STAINED_GLASS_ROW + 5), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 5), 8), &[(PANE, 8), (DYE + 5, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 6), 16), &[(cat(c::STAINED_GLASS_ROW + 6), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 6), 8), &[(PANE, 8), (DYE + 6, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 7), 16), &[(cat(c::STAINED_GLASS_ROW + 7), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 7), 8), &[(PANE, 8), (DYE + 7, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 8), 16), &[(cat(c::STAINED_GLASS_ROW + 8), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 8), 8), &[(PANE, 8), (DYE + 8, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 9), 16), &[(cat(c::STAINED_GLASS_ROW + 9), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 9), 8), &[(PANE, 8), (DYE + 9, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 10), 16), &[(cat(c::STAINED_GLASS_ROW + 10), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 10), 8), &[(PANE, 8), (DYE + 10, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 11), 16), &[(cat(c::STAINED_GLASS_ROW + 11), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 11), 8), &[(PANE, 8), (DYE + 11, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 12), 16), &[(cat(c::STAINED_GLASS_ROW + 12), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 12), 8), &[(PANE, 8), (DYE + 12, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 13), 16), &[(cat(c::STAINED_GLASS_ROW + 13), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 13), 8), &[(PANE, 8), (DYE + 13, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 14), 16), &[(cat(c::STAINED_GLASS_ROW + 14), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 14), 8), &[(PANE, 8), (DYE + 14, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 15), 16), &[(cat(c::STAINED_GLASS_ROW + 15), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::STAINED_PANE_ROW + 15), 8), &[(PANE, 8), (DYE + 15, 1)], WORKBENCH),
+    r(Cat::Building, (cat(c::CARPET_ROW + 0), 3), &[(CLOTH, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 1), 3), &[(WOOL_ITEM + 0, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 2), 3), &[(WOOL_ITEM + 1, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 3), 3), &[(WOOL_ITEM + 2, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 4), 3), &[(WOOL_ITEM + 3, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 5), 3), &[(WOOL_ITEM + 4, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 6), 3), &[(WOOL_ITEM + 5, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 7), 3), &[(WOOL_ITEM + 6, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 8), 3), &[(WOOL_ITEM + 7, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 9), 3), &[(WOOL_ITEM + 8, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 10), 3), &[(WOOL_ITEM + 9, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 11), 3), &[(WOOL_ITEM + 10, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 12), 3), &[(WOOL_ITEM + 11, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 13), 3), &[(WOOL_ITEM + 12, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 14), 3), &[(WOOL_ITEM + 13, 2)], AIR),
+    r(Cat::Building, (cat(c::CARPET_ROW + 15), 3), &[(WOOL_ITEM + 14, 2)], AIR),
+    r(Cat::Building, (cat(c::WALL_ROW + 0), 6), &[(COBBLE, 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 0), 1), &[(COBBLE, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 1), 6), &[(MOSSY_COBBLE, 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 1), 1), &[(MOSSY_COBBLE, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 2), 6), &[(STONE_BRICK, 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 2), 1), &[(STONE_BRICK, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 3), 6), &[(cat(c::MOSSY_STONE_BRICKS), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 3), 1), &[(cat(c::MOSSY_STONE_BRICKS), 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 4), 6), &[(BRICK, 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 4), 1), &[(BRICK, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 5), 6), &[(SANDSTONE, 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 5), 1), &[(SANDSTONE, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 6), 6), &[(cat(c::RED_SANDSTONE), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 6), 1), &[(cat(c::RED_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 7), 6), &[(EXTRA_ITEM, 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 7), 1), &[(EXTRA_ITEM, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 8), 6), &[(cat(c::POLISHED_SLATE), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 8), 1), &[(cat(c::POLISHED_SLATE), 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 9), 6), &[(cat(c::SLATE_BRICKS), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 9), 1), &[(cat(c::SLATE_BRICKS), 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::WALL_ROW + 10), 6), &[(cat(c::SLATE_TILES), 6)], WORKBENCH),
+    r(Cat::Building, (cat(c::WALL_ROW + 10), 1), &[(cat(c::SLATE_TILES), 1)], STONECUTTER),
 ];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -1441,8 +1532,8 @@ pub fn door_item(b: Block) -> Item {
 
 /// The item a block in the world stands for (middle click, and what it drops).
 pub fn item_of(b: Block) -> Item {
-    if let Some(r) = crate::catalogue::row_of_block(b) {
-        return crate::catalogue::item(r);
+    if let Some(i) = crate::catalogue::item_of_block(b) {
+        return i;
     }
     if crate::building::is_fence_gate(b) {return OAK_GATE+((b-crate::building::FENCE_GATE)>>2);}
     if crate::building::is_sign(b) {return SIGN_ITEM;}

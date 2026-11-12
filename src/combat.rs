@@ -295,6 +295,13 @@ impl Game {
             self.smoulder_t = 0.8;
             self.hurt(1.0);
         }
+        // a campfire burns whoever stands in it (a soul campfire twice as hard), sneaking
+        // or not
+        let fire = self.world.get_block(under.x, under.y, under.z);
+        if self.player.on_ground && catalogue::is_campfire(fire) && self.smoulder_t <= 0.0 {
+            self.smoulder_t = 1.0;
+            self.hurt(if fire == catalogue::block(catalogue::SOUL_CAMPFIRE) { 2.0 } else { 1.0 });
+        }
         // cactus pricks whoever brushes against it or stands on it
         self.cactus_t -= dt;
         if self.cactus_t <= 0.0 {
@@ -491,6 +498,9 @@ impl Game {
                     BERRY_BUSH => self.spill(at, drop, 2),
                     SNOW => self.spill(at, drop, 4),
                     CLAY if drop == items::CLAY_BALL => self.spill(at, drop, 4),
+                    // (a campfire leaves two coal, as Minecraft's two charcoal; a soul one its ash)
+                    b if b == catalogue::block(catalogue::CAMPFIRE) && !creative => self.spill(at, items::COAL, 2),
+                    b if b == catalogue::block(catalogue::SOUL_CAMPFIRE) && !creative => self.spill(at, items::DEEP_ITEM + 2, 1),
                     // (a bookshelf breaks into its three books)
                     b if b == crate::catalogue::block(crate::catalogue::BOOKSHELF) && drop != AIR => self.spill(at, items::BOOK, 3),
                     _ => self.spill(at, drop, 1),
@@ -560,7 +570,9 @@ impl Game {
                     if self.world.set_pair(p.x, p.y + 1, p.z, AIR, AIR) {
                         self.spill(up, items::door_item(above), 1);
                     }
-                } else if (above == TORCH || is_plant(above)) && self.world.set_block(p.x, p.y + 1, p.z, AIR) {
+                } else if (above == TORCH || is_plant(above) || catalogue::is_carpet(above) || above == catalogue::block(catalogue::LANTERN))
+                    && self.world.set_block(p.x, p.y + 1, p.z, AIR)
+                {
                     self.spill(up, items::drop_for(above, tool), 1);
                     // (a stand of reeds falls whole)
                     let mut y = p.y + 2;

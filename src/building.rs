@@ -33,7 +33,7 @@ pub fn stairs(mat: Block, side: Block, top: bool) -> Block {
 }
 
 pub fn gate_boxes(b: Block, drawing: bool) -> Boxes {
-    let mut v = [[0.0; 6]; 5];
+    let mut v = [[0.0; 6]; 8];
     if gate_open(b) && !drawing {
         return (v, 0);
     }
@@ -54,7 +54,7 @@ pub fn gate_boxes(b: Block, drawing: bool) -> Boxes {
 }
 
 pub fn sign_boxes(b: Block) -> Boxes {
-    let mut v = [[0.0; 6]; 5];
+    let mut v = [[0.0; 6]; 8];
     v[0] = [0.4375, 0.0, 0.4375, 0.5625, 0.5, 0.5625];
     v[1] = [0.0625, 0.5, 0.4375, 0.9375, 1.0, 0.5625];
     if (b - SIGN) / 2 == 0 {
@@ -125,7 +125,7 @@ pub fn chest_boxes(b: Block, at: impl Fn(i32, i32) -> Block, drawing: bool) -> B
     let (f, j) = (chest_facing(b), chest_join(b));
     // width along `a`, depth along `d`
     let make = |a0: f32, a1: f32, d0: f32, d1: f32, y0: f32, y1: f32| if f >= 2 { [a0, y0, d0, a1, y1, d1] } else { [d0, y0, a0, d1, y1, a1] };
-    let mut v = [[0.0f32; 6]; 5];
+    let mut v = [[0.0f32; 6]; 8];
     let a0 = if j == 2 { 0.0 } else { P };
     let a1 = if j == 1 { 1.0 } else { 15.0 * P };
     v[0] = make(a0, a1, P, 15.0 * P, 0.0, 14.0 * P);
@@ -237,7 +237,7 @@ pub fn bed_other(b: Block) -> Option<(i32, i32)> {
 /// A mattress on short legs at its outer end (both ends for an old one-block bed).
 pub fn bed_boxes(b: Block, drawing: bool) -> Boxes {
     const P: f32 = 1.0 / 16.0;
-    let mut v = [[0.0f32; 6]; 5];
+    let mut v = [[0.0f32; 6]; 8];
     v[0] = [0.0, if drawing { 3.0 * P } else { 0.0 }, 0.0, 1.0, BED_TOP, 1.0];
     if !drawing {
         return (v, 1);
@@ -668,7 +668,20 @@ impl Game {
                     self.goto(Screen::Inventory);
                     return;
                 }
-                b if furnace::kind_of(b).is_some() && !sneak => {
+                // raw food goes on a campfire's free place to cook
+                b if catalogue::is_campfire(b) && !sneak && furnace::accepts(furnace::CAMPFIRE, item) => {
+                    self.place_cd = 0.25;
+                    let fire = self.furnaces.entry(p).or_default();
+                    fire.kind = furnace::CAMPFIRE;
+                    if fire.put_on(self.inv.slots[self.sel]) {
+                        self.spend();
+                        self.audio.play_var(Snd::Crackle, p.as_vec3() + 0.5, 0.7);
+                    } else {
+                        self.say("The campfire is full".into());
+                    }
+                    return;
+                }
+                b if furnace::kind_of(b).is_some_and(|k| k != furnace::CAMPFIRE) && !sneak => {
                     self.chest_at = p;
                     self.furnaces.entry(p).or_default().kind = furnace::kind_of(b).unwrap();
                     self.goto(Screen::Furnace);
@@ -914,6 +927,14 @@ impl Game {
                 } else {
                     (q, building::slab(mat, high))
                 }
+            }
+            // a lantern hangs when placed against the underside of a block
+            i if i == items::cat(catalogue::LANTERN) && n.y == -1 => {
+                if !is_solid(clicked) || is_shaped(clicked) {
+                    self.say("A lantern hangs from the underside of a solid block".into());
+                    return;
+                }
+                (q, catalogue::block(catalogue::HANGING_LANTERN))
             }
             items::REED_ITEM => {
                 // (Minecraft's sugar cane: on sand, dirt or grass with water beside the

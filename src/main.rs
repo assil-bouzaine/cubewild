@@ -1881,6 +1881,16 @@ impl Game {
                         let top = q.as_vec3() + Vec3::new(0.5 + dx as f32 * 0.16, 0.98, 0.5 + dz as f32 * 0.16);
                         self.particles.smoke(&mut self.rng, top, true);
                     }
+                    // a campfire sends up a tall column of smoke
+                    b if catalogue::is_campfire(b) => {
+                        for _ in 0..2 {
+                            let top = q.as_vec3() + Vec3::new(self.rng.range(0.35, 0.65), 0.9, self.rng.range(0.35, 0.65));
+                            self.particles.smoke(&mut self.rng, top, false);
+                        }
+                        if self.rng.f() < 0.2 {
+                            self.audio.play_var(Snd::Crackle, q.as_vec3() + 0.5, 0.6);
+                        }
+                    }
                     LAVA if self.rng.f() < 0.15 => {
                         let top = q.as_vec3() + Vec3::new(self.rng.f(), 1.0, self.rng.f());
                         self.particles.ember(&mut self.rng, top);
@@ -2067,7 +2077,7 @@ impl Game {
             // a furnace part way through a batch of iron (its window only: no block)
             let at = chest + IVec3::new(0, 40, 0);
             let mut f = furnace::Furnace { burn: 50.0, burn_max: 80.0, cook: 3.0, ..Default::default() };
-            f.slots = [Stack::new(IRON_ORE, 12), Stack::new(items::COAL, 3), Stack::new(items::IRON_INGOT, 4)];
+            f.slots = [Stack::new(IRON_ORE, 12), Stack::new(items::COAL, 3), Stack::new(items::IRON_INGOT, 4), Stack::default()];
             self.furnaces.insert(at, f);
             self.chest_at = at;
             self.goto(Screen::Furnace);
@@ -2080,9 +2090,11 @@ impl Game {
         // torches on the west and north walls
         self.world.set_block(ox + 1, y0 + 2, oz + 2, WALL_TORCH);
         self.world.set_block(ox + 3, y0 + 2, oz + 1, WALL_TORCH + 2);
-        if std::env::var_os("CUBEWILD_TEST_BLOCKS").is_some() {
-            // every catalogue block on a stone floor south of the hut, a gap between rows
-            for (i, _) in catalogue::DEFS.iter().enumerate() {
+        if let Ok(from) = std::env::var("CUBEWILD_TEST_BLOCKS") {
+            // every catalogue block (from row `from` on) on a stone floor south of the hut,
+            // a gap between rows
+            let from = from.parse::<usize>().unwrap_or(0).min(catalogue::DEFS.len());
+            for i in 0..catalogue::DEFS.len() - from {
                 let (x, z) = (ox - 3 + (i % 13) as i32, oz + 9 + (i / 13) as i32 * 2);
                 for dz in 0..2 {
                     self.world.set_block_bg(x, y0 - 1, z + dz, STONE);
@@ -2090,7 +2102,7 @@ impl Game {
                         self.world.set_block_bg(x, y, z + dz, AIR);
                     }
                 }
-                self.world.set_block_bg(x, y0, z, catalogue::block(i));
+                self.world.set_block_bg(x, y0, z, catalogue::block(from + i));
             }
         }
         let p = &mut self.player;
@@ -2397,11 +2409,21 @@ impl Game {
                 self.gate_t = (self.gate_t - dt * 2.0).max(0.0);
                 self.gate_hum_t = 0.0;
             }
-            // furnaces burn on wherever they are
-            for f in self.furnaces.values_mut() {
-                if f.lit() || f.cook > 0.0 || (!f.slots[furnace::INPUT].is_empty() && !f.slots[furnace::FUEL].is_empty()) {
+            // furnaces burn on wherever they are; campfires cook, and what is done pops off
+            // (once its place is loaded)
+            let mut cooked: Vec<(Vec3, Stack)> = Vec::new();
+            for (p, f) in self.furnaces.iter_mut() {
+                if f.kind == furnace::CAMPFIRE {
+                    f.tick(dt);
+                    if self.world.is_loaded(p.x, p.z) {
+                        cooked.extend(f.take_cooked().into_iter().map(|st| (p.as_vec3() + Vec3::new(0.5, 0.6, 0.5), st)));
+                    }
+                } else if f.lit() || f.cook > 0.0 || (!f.slots[furnace::INPUT].is_empty() && !f.slots[furnace::FUEL].is_empty()) {
                     f.tick(dt);
                 }
+            }
+            for (at, st) in cooked {
+                self.pickups.pop(&mut self.rng, at, st);
             }
             // weather (none in the Emberdeep: there the region sets the haze)
             self.biome_t -= dt;
@@ -2670,6 +2692,17 @@ impl Game {
             push_box(&mut ents, &spin, Vec3::splat(-0.12), Vec3::splat(0.12), [255, 230, 150], gfx::EMISSIVE);
             push_box(&mut ents, &spin, Vec3::new(-0.22, -0.16, -0.16), Vec3::new(0.22, 0.16, 0.16), [240, 70, 30], gfx::EMISSIVE);
             push_box(&mut ents, &spin, Vec3::new(-0.16, -0.22, -0.16), Vec3::new(0.16, 0.22, 0.16), [200, 40, 30], 200);
+        }
+        // food cooking on campfires: a lump at each of its four places
+        for (p, f) in self.furnaces.iter().filter(|(p, f)| f.kind == furnace::CAMPFIRE && p.as_vec3().distance(eye) < 40.0) {
+            for (i, st) in f.slots.iter().enumerate().filter(|(_, st)| !st.is_empty()) {
+                let (dx, dz) = [(0.3, 0.3), (0.7, 0.3), (0.7, 0.7), (0.3, 0.7)][i];
+                let done = f.timers[i] / furnace::CAMPFIRE_COOK;
+                let raw = if st.item == items::RAW_FISH { [150.0, 170.0, 190.0] } else { [200.0, 90.0, 80.0] };
+                let col = [0, 1, 2].map(|c| (raw[c] * (1.0 - done * 0.45)) as u8);
+                let m = Mat4::from_translation(p.as_vec3() + Vec3::new(dx, 0.5, dz) - eye);
+                push_box(&mut ents, &m, Vec3::new(-0.11, 0.0, -0.11), Vec3::new(0.11, 0.08, 0.11), col, 255);
+            }
         }
         for a in self.arrows.iter().filter(|a| a.snow) {
             let m = Mat4::from_translation(a.pos - eye);

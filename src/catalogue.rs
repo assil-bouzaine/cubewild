@@ -21,6 +21,16 @@ pub enum Shape {
     Lantern,
     /// the enchanting table: three quarters high
     Table,
+    /// a full cube you see through (stained glass): drawn with the water and glass
+    Glass,
+    /// a flat pane through the middle of the cell, joining its neighbours (iron bars,
+    /// stained glass panes): drawn like the glass pane
+    Pane,
+    /// a post with arms to its neighbours, too high to jump
+    Wall,
+    Carpet,
+    HangingLantern,
+    Campfire,
 }
 
 /// A texture: an existing layer, or one drawn here from a pattern and a colour.
@@ -49,13 +59,26 @@ pub struct Def {
     pub shape: Shape,
     pub light: u8,
     pub cat: Cat,
+    /// textures of parts that do not wear the block's own (see `part_layer`)
+    pub parts: &'static [Pat],
+    /// a state of another row's block (a hanging lantern): it has no item of its own and
+    /// drops that row's
+    pub drop: Option<usize>,
 }
 
 const fn d(name: &'static str, desc: &'static str, tex: &'static [Pat], hardness: f32, blast: f32, tool: Option<Kind>, tier: u8, cat: Cat) -> Def {
-    Def { name, desc, tex, icon: None, hardness, blast, tool, tier, burn: 0.0, shape: Shape::Full, light: 0, cat }
+    Def { name, desc, tex, icon: None, hardness, blast, tool, tier, burn: 0.0, shape: Shape::Full, light: 0, cat, parts: &[], drop: None }
 }
 const fn burns(mut def: Def, secs: f32) -> Def {
     def.burn = secs;
+    def
+}
+const fn with_parts(mut def: Def, parts: &'static [Pat]) -> Def {
+    def.parts = parts;
+    def
+}
+const fn state_of(mut def: Def, row: usize) -> Def {
+    def.drop = Some(row);
     def
 }
 const fn shaped(mut def: Def, shape: Shape, light: u8, icon: Option<Pat>) -> Def {
@@ -92,9 +115,111 @@ const TERRACOTTAS: [Def; 16] = terracotta!(0 "White Terracotta", 1 "Orange Terra
     4 "Yellow Terracotta", 5 "Lime Terracotta", 6 "Pink Terracotta", 7 "Gray Terracotta", 8 "Light Gray Terracotta", 9 "Cyan Terracotta",
     10 "Purple Terracotta", 11 "Blue Terracotta", 12 "Brown Terracotta", 13 "Green Terracotta", 14 "Red Terracotta", 15 "Black Terracotta");
 
+const HEAD_LEN: usize = 25;
+const TAIL_LEN: usize = 11;
+const PHASE2_LEN: usize = 4;
+const WALLS_LEN: usize = 11;
+const OAK_LOG_SIDE: Pat = Pat::Layer(5);
+const OAK_LOG_END: Pat = Pat::Layer(6);
+use crate::world::COLOURS;
+
+/// Phase 2: the campfire and the hanging state of the lantern, then iron bars.
+const PHASE2: [Def; PHASE2_LEN] = [
+    state_of(shaped(d("Hanging Lantern", "A lantern hung from the block above.", &[Pat::Draw(lantern, [56, 58, 66])], 3.5, 3.5, PICK, 1, U), Shape::HangingLantern, 15, None), LANTERN),
+    with_parts(shaped(d("Campfire", "Cooks up to four raw foods put on it, slowly and with no fuel. Burns whoever stands in it.",
+        &[OAK_LOG_END, OAK_LOG_SIDE], 2.0, 2.0, AXE, 0, U), Shape::Campfire, 15, Some(Pat::Draw(campfire_icon, [255, 170, 60]))), &[Pat::Draw(flame, [255, 170, 60])]),
+    with_parts(shaped(d("Soul Campfire", "A campfire lit with ash from the Emberdeep: a dimmer, blue flame.",
+        &[OAK_LOG_END, OAK_LOG_SIDE], 2.0, 2.0, AXE, 0, U), Shape::Campfire, 10, Some(Pat::Draw(campfire_icon, [90, 210, 230]))), &[Pat::Draw(flame, [90, 210, 230])]),
+    shaped(d("Iron Bars", "Six iron ingots make sixteen. A grille that joins the walls beside it.", &[Pat::Draw(iron_bars, [150, 152, 160])], 5.0, 6.0, PICK, 1, B), Shape::Pane, 0, None),
+];
+const STAINED_GLASS: [Def; 16] = [
+    shaped(d("White Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[0])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Orange Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[1])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Magenta Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[2])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Light Blue Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[3])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Yellow Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[4])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Lime Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[5])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Pink Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[6])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Gray Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[7])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Light Gray Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[8])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Cyan Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[9])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Purple Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[10])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Blue Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[11])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Brown Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[12])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Green Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[13])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Red Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[14])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+    shaped(d("Black Stained Glass", "Glass with dye in it. Eight glass round a dye.", &[Pat::Draw(stained, COLOURS[15])], 0.3, 0.3, None, 0, B), Shape::Glass, 0, None),
+];
+const STAINED_PANES: [Def; 16] = [
+    shaped(d("White Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[0])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Orange Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[1])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Magenta Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[2])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Light Blue Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[3])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Yellow Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[4])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Lime Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[5])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Pink Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[6])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Gray Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[7])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Light Gray Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[8])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Cyan Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[9])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Purple Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[10])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Blue Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[11])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Brown Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[12])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Green Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[13])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Red Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[14])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+    shaped(d("Black Stained Glass Pane", "A thin coloured window that joins the walls beside it.", &[Pat::Draw(stained, COLOURS[15])], 0.3, 0.3, None, 0, B), Shape::Pane, 0, None),
+];
+const CARPETS: [Def; 16] = [
+    burns(shaped(d("White Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(48)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Orange Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(76)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Magenta Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(77)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Light Blue Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(78)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Yellow Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(79)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Lime Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(80)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Pink Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(81)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Gray Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(82)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Light Gray Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(83)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Cyan Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(84)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Purple Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(85)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Blue Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(86)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Brown Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(87)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Green Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(88)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Red Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(89)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+    burns(shaped(d("Black Carpet", "Two wool make three. A thin covering for floors.", &[Pat::Layer(90)], 0.1, 0.1, None, 0, B), Shape::Carpet, 0, None), 3.35),
+];
+const WALLS: [Def; WALLS_LEN] = [
+    shaped(d("Cobblestone Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Layer(9)], 2.0, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Mossy Cobblestone Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Layer(47)], 2.0, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Stone Brick Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Layer(15)], 1.5, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Mossy Stone Brick Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Draw(mossy_bricks, STONE_C)], 1.5, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Brick Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Layer(10)], 2.0, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Sandstone Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Layer(20)], 0.8, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Red Sandstone Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Draw(banded, RED_SAND_C)], 0.8, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Slate Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Layer(crate::textures::EXTRA_TEX as u32)], 3.5, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Polished Slate Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Draw(smooth, SLATE_C)], 3.5, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Slate Brick Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Draw(small_bricks, SLATE_C)], 3.5, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+    shaped(d("Slate Tile Wall", "Six blocks make six. Joins its neighbours and is too high to jump.", &[Pat::Draw(tiles, SLATE_C)], 3.5, 6.0, PICK, 1, B), Shape::Wall, 0, None),
+];
+
+/// Joins the groups of rows into one table, at compile time.
+const fn concat<const N: usize>(groups: &[&[Def]]) -> [Def; N] {
+    let mut all = [d("", "", &[], 0.0, 0.0, None, 0, B); N];
+    let (mut n, mut g) = (0, 0);
+    while g < groups.len() {
+        let mut i = 0;
+        while i < groups[g].len() {
+            all[n] = groups[g][i];
+            n += 1;
+            i += 1;
+        }
+        g += 1;
+    }
+    assert!(n == N);
+    all
+}
+
 /// Every catalogue block, in id order. Append only.
 pub const DEFS: &[Def] = &{
-    let head = [
+    let head: [Def; HEAD_LEN] = [
         burns(d("Block of Coal", "Nine coal packed tight. Burns for a long time.", &[Pat::Draw(metal, [44, 44, 48])], 5.0, 6.0, PICK, 1, B), 800.0),
         d("Block of Crystal", "Nine crystals. Shows off your wealth.", &[Pat::Draw(gem_block, [96, 220, 214])], 5.0, 6.0, PICK, 3, B),
         d("Block of Gem", "Nine gems, the villagers' money.", &[Pat::Draw(gem_block, [64, 200, 104])], 5.0, 6.0, PICK, 3, B),
@@ -121,7 +246,7 @@ pub const DEFS: &[Def] = &{
         d("Chiseled Slate", "Two slate slabs, carved.", &[Pat::Draw(chiseled, SLATE_C)], 3.5, 6.0, PICK, 1, B),
         d("Cracked Slate Bricks", "Slate bricks fired in a furnace.", &[Pat::Draw(cracked_small_bricks, SLATE_C)], 3.5, 6.0, PICK, 1, B),
     ];
-    let tail = [
+    let tail: [Def; TAIL_LEN] = [
         d("Smoker", "Cooks food twice as fast as a furnace, and nothing else.",
             &[Pat::Draw(smoker_top, [96, 92, 88]), Pat::Draw(smoker_side, [110, 84, 58]), Pat::Layer(9), Pat::Draw(smoker_front, [110, 84, 58])], 3.5, 3.5, PICK, 1, U),
         d("Blast Furnace", "Smelts ore and old metal gear twice as fast as a furnace.",
@@ -143,21 +268,7 @@ pub const DEFS: &[Def] = &{
         shaped(d("Lantern", "Eight iron nuggets round a torch. A steady light that stands on a block.",
             &[Pat::Draw(lantern, [56, 58, 66])], 3.5, 3.5, PICK, 1, U), Shape::Lantern, 15, Some(Pat::Draw(lantern_icon, [56, 58, 66]))),
     ];
-    let mut all = [const { d("", "", &[], 0.0, 0.0, None, 0, B) }; 25 + 16 + 11];
-    let mut i = 0;
-    while i < 25 {
-        all[i] = head[i];
-        i += 1;
-    }
-    while i < 41 {
-        all[i] = TERRACOTTAS[i - 25];
-        i += 1;
-    }
-    while i < 52 {
-        all[i] = tail[i - 41];
-        i += 1;
-    }
-    all
+    concat::<{ HEAD_LEN + 16 + TAIL_LEN + PHASE2_LEN + 16 * 3 + WALLS_LEN }>(&[&head, &TERRACOTTAS, &tail, &PHASE2, &STAINED_GLASS, &STAINED_PANES, &CARPETS, &WALLS])
 };
 
 // row numbers, for recipes and behaviour
@@ -199,6 +310,17 @@ pub const LOOM: usize = 48;
 pub const CHIPPED_ANVIL: usize = 49;
 pub const DAMAGED_ANVIL: usize = 50;
 pub const LANTERN: usize = 51;
+pub const HANGING_LANTERN: usize = 52;
+pub const CAMPFIRE: usize = 53;
+pub const SOUL_CAMPFIRE: usize = 54;
+pub const IRON_BARS: usize = 55;
+/// + colour
+pub const STAINED_GLASS_ROW: usize = 56;
+pub const STAINED_PANE_ROW: usize = 72;
+pub const CARPET_ROW: usize = 88;
+/// cobblestone, mossy cobblestone, stone brick, mossy stone brick, brick, sandstone,
+/// red sandstone, slate, polished slate, slate brick, slate tile
+pub const WALL_ROW: usize = 104;
 
 pub const fn item(row: usize) -> Item {
     ITEM0 + row as Item
@@ -220,7 +342,34 @@ pub fn def(b: Block) -> Option<&'static Def> {
     row_of_block(b).map(|r| &DEFS[r])
 }
 pub fn is_shaped(b: Block) -> bool {
-    def(b).is_some_and(|d| d.shape != Shape::Full)
+    def(b).is_some_and(|d| !matches!(d.shape, Shape::Full | Shape::Glass))
+}
+fn shape_is(b: Block, shape: Shape) -> bool {
+    def(b).is_some_and(|d| d.shape == shape)
+}
+pub fn is_glass(b: Block) -> bool {
+    shape_is(b, Shape::Glass)
+}
+pub fn is_pane(b: Block) -> bool {
+    shape_is(b, Shape::Pane)
+}
+pub fn is_wall(b: Block) -> bool {
+    shape_is(b, Shape::Wall)
+}
+pub fn is_carpet(b: Block) -> bool {
+    shape_is(b, Shape::Carpet)
+}
+pub fn is_campfire(b: Block) -> bool {
+    shape_is(b, Shape::Campfire)
+}
+/// The item a catalogue block stands for (a hanging lantern is a lantern).
+pub fn item_of_block(b: Block) -> Option<Item> {
+    let r = row_of_block(b)?;
+    Some(item(DEFS[r].drop.unwrap_or(r)))
+}
+/// Rows that are only states of another block have no item.
+pub fn has_item(row: usize) -> bool {
+    DEFS[row].drop.is_none()
 }
 pub fn is_anvil(b: Block) -> bool {
     b == crate::world::ANVIL || b == block(CHIPPED_ANVIL) || b == block(DAMAGED_ANVIL)
@@ -235,7 +384,7 @@ const fn px(v: [i32; 6]) -> [f32; 6] {
 
 /// The boxes of a shaped block (`drawing` adds details that do not collide).
 pub fn boxes(shape: Shape, drawing: bool) -> crate::world::Boxes {
-    let mut v = [[0.0f32; 6]; 5];
+    let mut v = [[0.0f32; 6]; 8];
     let list: &[[i32; 6]] = match shape {
         Shape::Full => &[[0, 0, 0, 16, 16, 16]],
         // a broad foot, a narrow waist and the long face along x
@@ -246,6 +395,16 @@ pub fn boxes(shape: Shape, drawing: bool) -> crate::world::Boxes {
         Shape::Grindstone => &[[4, 4, 2, 12, 16, 14], [2, 0, 6, 4, 13, 10], [12, 0, 6, 14, 13, 10]],
         Shape::Lantern => &[[5, 0, 5, 11, 7, 11], [6, 7, 6, 10, 9, 10]],
         Shape::Table => &[[0, 0, 0, 16, 12, 16]],
+        Shape::Carpet => &[[0, 0, 0, 16, 1, 16]],
+        Shape::HangingLantern if drawing => &[[5, 1, 5, 11, 8, 11], [6, 8, 6, 10, 10, 10], [7, 10, 7, 9, 16, 9]],
+        Shape::HangingLantern => &[[5, 1, 5, 11, 10, 11]],
+        // two logs along z under two along x, and the flames crossed in the middle
+        Shape::Campfire if drawing => {
+            &[[1, 0, 0, 5, 4, 16], [11, 0, 0, 15, 4, 16], [0, 3, 1, 16, 7, 5], [0, 3, 11, 16, 7, 15], [3, 1, 7, 13, 15, 9], [7, 1, 3, 9, 15, 13]]
+        }
+        Shape::Campfire => &[[0, 0, 0, 16, 7, 16]],
+        // (glass is a cube, panes and walls are worked out with their neighbours in `world`)
+        Shape::Glass | Shape::Pane | Shape::Wall => &[[0, 0, 0, 16, 16, 16]],
     };
     for (k, b) in list.iter().enumerate() {
         v[k] = px(*b);
@@ -254,10 +413,12 @@ pub fn boxes(shape: Shape, drawing: bool) -> crate::world::Boxes {
 }
 
 /// The texture layer of part `k` of a shaped catalogue block, if not its own.
-pub fn part_layer(shape: Shape, k: usize) -> Option<u32> {
+pub fn part_layer(b: Block, shape: Shape, k: usize) -> Option<u32> {
     match (shape, k) {
         (Shape::Grindstone, 1..) => Some(8),
         (Shape::Stonecutter, 1) => Some(crate::world::CHEST_LATCH_LAYER),
+        (Shape::HangingLantern, 2) => Some(crate::textures::NEW_TEX as u32),
+        (Shape::Campfire, 4..) => row_of_block(b).and_then(|r| LAYOUT.1[r].2.first().copied()),
         _ => None,
     }
 }
@@ -268,8 +429,9 @@ pub fn part_layer(shape: Shape, k: usize) -> Option<u32> {
 fn drawn() -> &'static [Pat] {
     &LAYOUT.0
 }
-/// The drawn patterns, and for every row the layers of its faces and of its icon.
-static LAYOUT: std::sync::LazyLock<(Vec<Pat>, Vec<(Vec<u32>, Option<u32>)>)> = std::sync::LazyLock::new(|| {
+/// The drawn patterns, and for every row the layers of its faces, its icon and its parts.
+#[allow(clippy::type_complexity)]
+static LAYOUT: std::sync::LazyLock<(Vec<Pat>, Vec<(Vec<u32>, Option<u32>, Vec<u32>)>)> = std::sync::LazyLock::new(|| {
     let mut drawn = Vec::new();
     let mut rows = Vec::new();
     let place = |p: Pat, drawn: &mut Vec<Pat>| match p {
@@ -282,7 +444,8 @@ static LAYOUT: std::sync::LazyLock<(Vec<Pat>, Vec<(Vec<u32>, Option<u32>)>)> = s
     for def in DEFS {
         let faces: Vec<u32> = def.tex.iter().map(|&p| place(p, &mut drawn)).collect();
         let icon = def.icon.map(|p| place(p, &mut drawn));
-        rows.push((faces, icon));
+        let parts: Vec<u32> = def.parts.iter().map(|&p| place(p, &mut drawn)).collect();
+        rows.push((faces, icon, parts));
     }
     (drawn, rows)
 });
@@ -300,6 +463,13 @@ pub const fn layer_count() -> usize {
         }
         if matches!(DEFS[i].icon, Some(Pat::Draw(..))) {
             n += 1;
+        }
+        let mut j = 0;
+        while j < DEFS[i].parts.len() {
+            if matches!(DEFS[i].parts[j], Pat::Draw(..)) {
+                n += 1;
+            }
+            j += 1;
         }
         i += 1;
     }
@@ -663,6 +833,41 @@ fn lantern(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
         sh([255, 206, 110], 0.92 + hash(x, y, 48) * 0.1)
     }
 }
+/// tinted glass: a slightly stronger rim, a streak of light, and see-through
+fn stained(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let rim = x == 0 || y == 0 || x == 15 || y == 15;
+    let streak = (x - y).abs() <= 1 && (3..=8).contains(&x) || (x - y == 6 && (8..=11).contains(&x));
+    let k = if rim { 0.8 } else if streak { 1.25 } else { 1.0 };
+    let mut px = sh(c, k);
+    px[3] = if rim { 210 } else if streak { 150 } else { 110 };
+    px
+}
+/// four upright bars and two rails, open between
+fn iron_bars(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let bar = matches!(x, 1 | 5 | 9 | 13) || matches!(x, 2 | 6 | 10 | 14);
+    let rail = matches!(y, 0 | 1 | 14 | 15);
+    if bar || rail { sh(c, if matches!(x, 2 | 6 | 10 | 14) { 0.8 } else { 1.0 + hash(x, y, 49) * 0.12 }) } else { CLEAR }
+}
+/// tongues of flame rising from the bottom of the layer (the flame boxes sample rows 1..15)
+fn flame(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let mid = (x as f32 - 7.5).abs();
+    let height = 13.0 - mid * 1.6 + ((x as f32 * 1.7).sin() * 2.0);
+    let up = 15 - y;
+    if (up as f32) > height || up < 1 {
+        return CLEAR;
+    }
+    let hot = 1.0 - up as f32 / height.max(1.0);
+    let core = mix(c, [255, 250, 220], hot * 0.8);
+    sh(core, 1.0)
+}
+fn campfire_icon(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    match y {
+        11..=12 if (1..=14).contains(&x) => sh(OAK_C, if y == 11 { 0.9 } else { 0.7 }),
+        13..=14 if (2..=5).contains(&x) || (10..=13).contains(&x) => sh([110, 80, 46], 1.0),
+        2..=10 => flame(x, y + 5, c),
+        _ => CLEAR,
+    }
+}
 fn lantern_icon(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
     match (x, y) {
         (7..=8, 1..=2) | (6..=9, 3..=4) => sh(c, 1.0),
@@ -676,14 +881,41 @@ fn lantern_icon(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
 mod tests {
     use super::*;
     #[test]
+    fn walls_panes_glass_and_carpets_take_their_shapes() {
+        use crate::world::*;
+        let wall = block(WALL_ROW);
+        let along_x = |dx: i32, _dz: i32| if dx != 0 { wall } else { AIR };
+        // a straight run has no post: two arms meeting in the middle, 1.5 high to collide
+        let (v, n) = shape_boxes(wall, along_x);
+        assert_eq!((n, v[0][4]), (2, 1.5));
+        // a corner, or a wall on its own, has its post
+        assert_eq!(shape_boxes(wall, |dx, dz| if dx == 1 || dz == 1 { STONE } else { AIR }).1, 3);
+        assert_eq!(shape_boxes(wall, |_, _| AIR).1, 1);
+        let pane = block(STAINED_PANE_ROW + 3);
+        assert!(is_pane(pane) && is_pane(block(IRON_BARS)) && !is_opaque(pane) && is_solid(pane));
+        assert_eq!(shape_boxes(pane, |dx, _| if dx != 0 { STONE } else { AIR }).1, 1);
+        let glass = block(STAINED_GLASS_ROW + 14);
+        assert!(!is_opaque(glass) && !is_shaped(glass) && is_solid(glass));
+        let carpet = block(CARPET_ROW + 2);
+        assert_eq!(shape_boxes(carpet, |_, _| AIR).0[0][4], 1.0 / 16.0);
+        assert!(is_light(block(CAMPFIRE)) && crate::lighting::emission(block(SOUL_CAMPFIRE)) == 10);
+        assert_eq!(shape_boxes(block(CAMPFIRE), |_, _| AIR).0[0][4], 7.0 / 16.0);
+    }
+    #[test]
     fn rows_fit_their_ranges_and_draw_visible_textures() {
         assert!(DEFS.len() <= ROOM);
         assert_eq!(DEFS[TERRACOTTA + 15].name, "Black Terracotta");
         assert_eq!((DEFS[SMOKER].name, DEFS[LANTERN].name), ("Smoker", "Lantern"));
+        assert_eq!((DEFS[CAMPFIRE].name, DEFS[IRON_BARS].name), ("Campfire", "Iron Bars"));
+        assert_eq!(DEFS[STAINED_GLASS_ROW + 15].name, "Black Stained Glass");
+        assert_eq!(DEFS[STAINED_PANE_ROW].name, "White Stained Glass Pane");
+        assert_eq!(DEFS[CARPET_ROW + 14].name, "Red Carpet");
+        assert_eq!((DEFS[WALL_ROW].name, DEFS[DEFS.len() - 1].name), ("Cobblestone Wall", "Slate Tile Wall"));
+        assert_eq!(item_of_block(block(HANGING_LANTERN)), Some(item(LANTERN)));
         assert_eq!(drawn().len(), layer_count());
         for (r, def) in DEFS.iter().enumerate() {
             assert!(!def.name.is_empty() && !def.desc.is_empty() && !def.tex.is_empty(), "row {r}");
-            assert!(crate::registry::valid(block(r)) && crate::items::valid(item(r)));
+            assert!(crate::registry::valid(block(r)) && crate::items::valid(item(r)) == has_item(r));
             for f in 0..6 {
                 assert!((tex(block(r), f) as usize) < crate::textures::LAYERS);
             }

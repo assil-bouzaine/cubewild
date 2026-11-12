@@ -85,6 +85,19 @@ fn pattern(r: &Recipe) -> Option<(usize, Vec<Item>)> {
             i if i == cat(c::GRINDSTONE) => (3, vec![p, SLAB + 2, p, PLANKS, 0, PLANKS]),
             i if i == cat(c::LOOM) => (2, vec![p, p, PLANKS, PLANKS]),
             i if i == cat(c::LANTERN) => (3, vec![p, p, p, p, TORCH, p, p, p, p]),
+            i if i == cat(c::CAMPFIRE) || i == cat(c::SOUL_CAMPFIRE) => {
+                let (fuel, log) = (r.ins[1].0, r.ins[2].0);
+                (3, vec![0, p, 0, p, fuel, p, log, log, log])
+            }
+            // two rows of three: bars, panes and walls
+            i if i == cat(c::IRON_BARS) || (cat(c::WALL_ROW)..cat(c::WALL_ROW + 11)).contains(&i) => (3, vec![p; 6]),
+            i if (cat(c::STAINED_PANE_ROW)..cat(c::STAINED_PANE_ROW + 16)).contains(&i) && p != PANE => (3, vec![p; 6]),
+            // eight glass (or panes) round a dye
+            i if (cat(c::STAINED_GLASS_ROW)..cat(c::STAINED_PANE_ROW + 16)).contains(&i) => {
+                let dye = r.ins[1].0;
+                (3, vec![p, p, p, p, dye, p, p, p, p])
+            }
+            i if (cat(c::CARPET_ROW)..cat(c::CARPET_ROW + 16)).contains(&i) => (2, vec![p, p]),
             i if stair_material(i).is_some() => (3, vec![p, 0, 0, p, p, 0, p, p, p]),
             i if slab_material(i).is_some() => (3, vec![p, p, p]),
             _ => return None,
@@ -291,6 +304,24 @@ mod tests {
             assert!(r.station == AIR || STATIONS.contains(&r.station), "{}", name(r.out.0));
             assert!(valid(r.out.0) && r.ins.iter().all(|&(i, n)| valid(i) && n > 0), "{}", name(r.out.0));
         }
+    }
+    #[test]
+    fn phase_two_recipes_use_minecraft_shapes() {
+        use crate::catalogue as c;
+        let (s, g, i) = (STICK, GLASS, IRON_INGOT);
+        assert_eq!(made([0, s, 0, s, COAL, s, LOG, LOG, LOG], true), Some((cat(c::CAMPFIRE), 1)));
+        assert_eq!(made([i, i, i, i, i, i, 0, 0, 0], true), Some((cat(c::IRON_BARS), 16)));
+        assert_eq!(made([g, g, g, g, DYE + 11, g, g, g, g], true), Some((cat(c::STAINED_GLASS_ROW + 11), 8)));
+        let blue = cat(c::STAINED_GLASS_ROW + 11);
+        assert_eq!(made([blue, blue, blue, blue, blue, blue, 0, 0, 0], true), Some((cat(c::STAINED_PANE_ROW + 11), 16)));
+        let p = PANE;
+        assert_eq!(made([p, p, p, p, DYE + 1, p, p, p, p], true), Some((cat(c::STAINED_PANE_ROW + 1), 8)));
+        assert_eq!(recipe(&grid([CLOTH, CLOTH, 0, 0, 0, 0, 0, 0, 0]), 2, false).map(|i| RECIPES[i].out), Some((cat(c::CARPET_ROW), 3)));
+        let w = WOOL_ITEM + 13;
+        assert_eq!(recipe(&grid([w, w, 0, 0, 0, 0, 0, 0, 0]), 2, false).map(|i| RECIPES[i].out), Some((cat(c::CARPET_ROW + 14), 3)));
+        let cb = COBBLE;
+        assert_eq!(made([cb, cb, cb, cb, cb, cb, 0, 0, 0], true), Some((cat(c::WALL_ROW), 6)));
+        assert!(RECIPES.iter().any(|r| r.station == STONECUTTER && r.ins == [(cb, 1)] && r.out == (cat(c::WALL_ROW), 1)));
     }
     #[test]
     fn grindstones_refund_levels_and_anvils_wear_out() {

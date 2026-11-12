@@ -50,16 +50,21 @@ with Minecraft's shape and recipe, fletching/cartography tables and loom as plac
 blocks); 52 new blocks; recipe fixes (metal blocks, stone bricks, sandstone, clay and
 bricks, mossy cobblestone).
 
+Done (phase 2): campfire and soul campfire (four cooking places kept in the furnace
+map as a cooker kind, saved with per-place timers), iron bars, sixteen stained glass and
+stained glass panes (panes and bars share the glass pane's flat quads; stained glass is
+drawn in the translucent pass), sixteen carpets, eleven walls, the hanging lantern (a
+state row that drops the lantern). Shaped blocks may now have up to eight boxes.
+
 Next phases, by how well they fit:
-1. Campfire (cooking on top, light, smoke), brewing stand (needs potions).
-2. More shapes: walls, carpets (16 colours), iron bars, stained glass and panes (16),
-   hanging lanterns, stairs and slabs for the new stone families (needs new families).
-3. Concrete and concrete powder (16 each; powder falls and sets in water), glazed
+1. Brewing stand (needs potions); stairs and slabs for the new stone families (needs
+   new stair and slab families).
+2. Concrete and concrete powder (16 each; powder falls and sets in water), glazed
    terracotta.
-4. New wood types (spruce, jungle, acacia, dark oak) for the trees already generated:
+3. New wood types (spruce, jungle, acacia, dark oak) for the trees already generated:
    logs, planks, stairs, slabs, fences, doors, signs.
-5. Nature blocks: pumpkins, melons, flowers, vines, lily pads, mushroom blocks, coral.
-6. Redstone (54 blocks) once there is a power system.
+4. Nature blocks: pumpkins, melons, flowers, vines, lily pads, mushroom blocks, coral.
+5. Redstone (54 blocks) once there is a power system.
 Stack size stays 99 for now: Minecraft's 64 would cut saved stacks above 64 on load
 (`loot::parse_stack` clamps), so it needs a split-on-load migration first.
 

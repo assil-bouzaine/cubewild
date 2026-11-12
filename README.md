@@ -145,7 +145,25 @@ smooth stone; cracked, chiseled and mossy stone bricks; cut, chiseled and smooth
 sandstone; red sandstone and its cut, chiseled and smooth forms; packed and blue ice;
 polished slate, slate bricks, tiles, chiseled and cracked slate; sixteen colours of
 terracotta (eight terracotta round a dye); and the **lantern** (eight iron nuggets round
-a torch), a full-strength light that stands on a block (Minecraft's also hangs).
+a torch), a full-strength light that stands on a block or hangs under one.
+
+**Campfires**: three sticks, a coal and three logs make a campfire (a soul campfire takes
+Emberdeep ash instead of coal). Right click it with raw meat or fish to lay it on one of
+four places; each cooks in 30 seconds with no fuel and pops off when done. A campfire
+gives full light (a soul campfire less), sends up smoke, and burns whoever stands in it
+(sneaking does not help). Broken, it leaves two coal (Minecraft's two charcoal). As a
+simplification it is always lit.
+
+**Glass, bars, carpets and walls**: eight glass round a dye make eight **stained glass**
+in any of the sixteen colours; you see through it, tinted. Six stained glass make sixteen
+**stained glass panes** (or eight panes round a dye make eight). Six iron ingots make
+sixteen **iron bars**, which join like panes. Two wool make three **carpets**: thin floor
+covering that comes loose when the block under it goes. Six cobblestone, mossy
+cobblestone, stone bricks, mossy stone bricks, bricks, sandstone, red sandstone, slate,
+polished slate, slate bricks or slate tiles make six **walls** (one each at the
+stonecutter); walls join each other, panes, gates and solid blocks, stand a post where
+they turn, and are too high to jump. A **lantern** placed against the underside of a
+block hangs from it.
 
 **Changed to Minecraft's recipes**: iron and gold blocks take nine ingots (and give
 them back); stone bricks are made from stone; four sand make one sandstone; one
@@ -355,7 +373,7 @@ conditions, measurements and HDD autosave verification.
 - `CUBEWILD_TEST_HOUSE=in|out`, `CUBEWILD_TEST_MOBS=1` — build a hut with doors, windows
   and one of each shaped block (`CUBEWILD_SCREEN=chest` opens its chest)
   around the player (start inside or outside it) / line up one of each monster nearby.
-  `CUBEWILD_TEST_BLOCKS=1` (with the hut) lays out every catalogue block on a floor south
+  `CUBEWILD_TEST_BLOCKS=<first row>` (with the hut) lays out the catalogue blocks on a floor south
   of it and puts you on a pillar above them; `CUBEWILD_NO_PAUSE=1` keeps the game running
   when its window loses focus.
   These change the world: use them with a spare `CUBEWILD_SEED`

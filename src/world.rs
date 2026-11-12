@@ -381,7 +381,37 @@ fn door_layer(b: Block) -> u32 {
 /// What a window pane joins up with.
 #[inline]
 fn pane_joins(b: Block) -> bool {
-    b == PANE || b == GLASS || is_door(b) || (is_opaque(b) && !is_leaves(b))
+    is_pane(b) || b == GLASS || crate::catalogue::is_glass(b) || crate::catalogue::is_wall(b) || is_door(b) || (is_opaque(b) && !is_leaves(b))
+}
+/// Glass panes, stained glass panes and iron bars: flat quads through the cell.
+#[inline]
+pub fn is_pane(b: Block) -> bool {
+    b == PANE || crate::catalogue::is_pane(b)
+}
+/// What a wall joins up with (as in Minecraft: walls, panes, bars, gates and solid blocks).
+fn wall_joins(b: Block) -> bool {
+    crate::catalogue::is_wall(b) || is_pane(b) || crate::building::is_fence_gate(b) || (is_opaque(b) && !is_leaves(b))
+}
+/// A wall: a post, unless it runs straight through, and an arm to each neighbour it
+/// joins. It collides one and a half blocks high, like a fence.
+fn wall_boxes(at: impl Fn(i32, i32) -> Block, drawing: bool) -> Boxes {
+    let joins: [bool; 4] = std::array::from_fn(|s| wall_joins(at(SIDE_DIR[s].0, SIDE_DIR[s].1)));
+    let (arm_h, post_h) = if drawing { (14.0 / 16.0, 1.0) } else { (1.5, 1.5) };
+    let (p0, p1, a0, a1) = (0.25, 0.75, 5.0 / 16.0, 11.0 / 16.0);
+    let straight = (joins[0] && joins[1] && !joins[2] && !joins[3]) || (joins[2] && joins[3] && !joins[0] && !joins[1]);
+    let mut v = [[0.0f32; 6]; 8];
+    let mut n = 0;
+    if !straight {
+        v[0] = [p0, 0.0, p0, p1, post_h, p1];
+        n = 1;
+    }
+    for (s, arm) in [[0.0, 0.0, a0, 0.5, arm_h, a1], [0.5, 0.0, a0, 1.0, arm_h, a1], [a0, 0.0, 0.0, a1, arm_h, 0.5], [a0, 0.0, 0.5, a1, arm_h, 1.0]].into_iter().enumerate() {
+        if joins[s] {
+            v[n] = arm;
+            n += 1;
+        }
+    }
+    (v, n)
 }
 /// (runs along x, runs along z) for a pane, from whether it has a neighbour on each axis.
 #[inline]
@@ -404,22 +434,25 @@ fn side_box(s: u8, from: f32, t: f32) -> [f32; 6] {
     }
 }
 
-/// up to five boxes, and how many are used
-pub type Boxes = ([[f32; 6]; 5], usize);
+/// up to eight boxes, and how many are used
+pub type Boxes = ([[f32; 6]; 8], usize);
 
 /// Boxes a shaped block fills inside its cell, as [x0, y0, z0, x1, y1, z1]; `at` reads
 /// the neighbouring blocks on its level by offset. A fence stands taller than its cell.
 pub fn shape_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
-    let mut v = [[0.0f32; 6]; 5];
+    let mut v = [[0.0f32; 6]; 8];
     if crate::building::is_fence_gate(b) {return crate::building::gate_boxes(b,false);}
     if crate::building::is_sign(b) {return crate::building::sign_boxes(b);}
     if crate::building::is_chest(b) {return crate::building::chest_boxes(b, at, false);}
     if crate::building::is_bed(b) {return crate::building::bed_boxes(b, false);}
-    if let Some(shape) = catalogue_shape(b) {return crate::catalogue::boxes(shape, false);}
+    if crate::catalogue::is_wall(b) {return wall_boxes(at, false);}
+    if !is_pane(b) {
+        if let Some(shape) = catalogue_shape(b) {return crate::catalogue::boxes(shape, false);}
+    }
     let n = if is_door(b) {
         v[0] = side_box(door_sides(b).0, 0.0, DOOR_THICK);
         1
-    } else if b == PANE {
+    } else if is_pane(b) {
         let (ax, az) = pane_axes(pane_joins(at(-1, 0)) || pane_joins(at(1, 0)), pane_joins(at(0, -1)) || pane_joins(at(0, 1)));
         let (lo, hi) = (0.5 - PANE_HALF, 0.5 + PANE_HALF);
         let mut n = 0;
@@ -504,9 +537,10 @@ fn draw_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
     if crate::building::is_fence_gate(b) {return crate::building::gate_boxes(b,true);}
     if crate::building::is_chest(b) {return crate::building::chest_boxes(b, at, true);}
     if crate::building::is_bed(b) {return crate::building::bed_boxes(b, true);}
-    if let Some(shape) = catalogue_shape(b) {return crate::catalogue::boxes(shape, true);}
+    if crate::catalogue::is_wall(b) {return wall_boxes(at, true);}
+    if let Some(shape) = catalogue_shape(b).filter(|&s| s != crate::catalogue::Shape::Pane) {return crate::catalogue::boxes(shape, true);}
     if is_fence(b) {
-        let mut v = [[0.0f32; 6]; 5];
+        let mut v = [[0.0f32; 6]; 8];
         v[0] = [0.375, 0.0, 0.375, 0.625, 1.0, 0.625];
         let mut n = 1;
         // one box per joined side, cut into two rails by the caller
@@ -518,7 +552,7 @@ fn draw_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
         }
         (v, n)
     } else if is_ladder(b) {
-        let mut v = [[0.0f32; 6]; 5];
+        let mut v = [[0.0f32; 6]; 8];
         v[0] = side_box((b - LADDER_BASE) as u8, 0.0625, 0.125);
         (v, 1)
     } else {
@@ -532,7 +566,7 @@ fn catalogue_shape(b: Block) -> Option<crate::catalogue::Shape> {
     match b {
         ANVIL => Some(Shape::Anvil),
         ENCHANTING_TABLE => Some(Shape::Table),
-        _ => crate::catalogue::def(b).map(|d| d.shape).filter(|&s| s != Shape::Full),
+        _ => crate::catalogue::def(b).map(|d| d.shape).filter(|&s| !matches!(s, Shape::Full | Shape::Glass)),
     }
 }
 
@@ -563,7 +597,7 @@ pub fn is_replaceable(b: Block) -> bool {
 
 #[inline]
 pub fn is_opaque(b: Block) -> bool {
-    b != AIR && !is_water(b) && b != GLASS && !is_torch(b) && !is_plant(b) && !is_shaped(b) && !is_gate(b) && !(LAVA_FLOW..LAVA_FLOW_END).contains(&b)
+    b != AIR && !is_water(b) && b != GLASS && !crate::catalogue::is_glass(b) && !is_torch(b) && !is_plant(b) && !is_shaped(b) && !is_gate(b) && !(LAVA_FLOW..LAVA_FLOW_END).contains(&b)
 }
 /// Blocks you collide with / can target.
 #[inline]
@@ -802,7 +836,7 @@ fn part_layer(b: Block, k: usize, face: usize) -> u32 {
         CHEST_LATCH_LAYER
     } else if k > 0 && crate::building::is_bed(b) {
         8
-    } else if let Some(layer) = catalogue_shape(b).and_then(|s| crate::catalogue::part_layer(s, k)) {
+    } else if let Some(layer) = catalogue_shape(b).and_then(|s| crate::catalogue::part_layer(b, s, k)) {
         layer
     } else {
         tex_for(b, face)
@@ -1759,20 +1793,21 @@ fn mesh_cached(n:&[Arc<ChunkData>;9], cached:Option<Box<[Arc<[u8]>;9]>>)->MeshDa
             for x in 0..CW {
                 let i = pidx([x, y, z]);
                 let b = at(i);
-                if b == PANE {
+                if is_pane(b) {
                     // a flat upright quad (face code 7) the shader moves to the middle of
                     // the cell: `code` 0 = towards +x, 2 = towards +z
                     let sky = sky_at(x, y, z);
                     let (x, y, z) = (x as u32, y as u32, z as u32);
+                    let layer = tex_for(b, 0);
                     let quad = |out: &mut Vec<[u32; 2]>, code: u32| {
-                        let tail = 7 << 18 | PANE_LAYER << 21 | code << 28 | sky << 30;
+                        let tail = 7 << 18 | (layer & 127) << 21 | code << 28 | sky << 30;
                         let corners = if code == 0 {
                             [(x, y, z), (x, y, z + 1), (x, y + 1, z + 1), (x, y + 1, z)]
                         } else {
                             [(x, y, z), (x + 1, y, z), (x + 1, y + 1, z), (x, y + 1, z)]
                         };
                         for (px, py, pz) in corners {
-                            out.push([pack_xyz(px, py, pz) | tail, PANE_LAYER << 8 | crate::lighting::brightness(lighting.at(x as i32, y as i32, z as i32))]);
+                            out.push([pack_xyz(px, py, pz) | tail, layer << 8 | crate::lighting::brightness(lighting.at(x as i32, y as i32, z as i32))]);
                         }
                     };
                     let j = |d: isize| pane_joins(at(i + d));
@@ -2618,7 +2653,7 @@ impl World {
     /// Boxes of the shaped block `b` at a cell, in world coordinates.
     pub fn shape_at(&self, b: Block, x: i32, y: i32, z: i32) -> Boxes {
         let (mut v, n) = if is_torch(b) {
-            let mut v = [[0.0f32; 6]; 5];
+            let mut v = [[0.0f32; 6]; 8];
             v[0] = torch_box(b);
             (v, 1)
         } else {
