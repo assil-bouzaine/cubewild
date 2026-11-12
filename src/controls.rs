@@ -395,6 +395,29 @@ impl Game {
                         self.xp = (fraction * fx::xp_to_next(self.level) as f32) as u32;
                     }
                     self.say(result.err().unwrap_or("Equipment repaired").into());
+                    // as in Minecraft, each use may wear the anvil a stage (12%)
+                    if result.is_ok() && self.mode != Mode::Creative && self.rng.f() < 0.12 {
+                        if let Some(p) = self.world.find_near(self.player.pos + Vec3::Y, 4, catalogue::is_anvil) {
+                            let b = self.world.get_block(p.x, p.y, p.z);
+                            let worn = equipment::worn_anvil(b);
+                            self.world.set_block(p.x, p.y, p.z, worn);
+                            if worn == AIR {
+                                self.audio.play_var(Snd::Break(audio::Surface::Stone), p.as_vec3() + 0.5, 1.0);
+                                self.say("The anvil broke".into());
+                            }
+                        }
+                    }
+                }
+            }
+            Action::Grind => {
+                if self.near_station(catalogue::block(catalogue::GRINDSTONE)) {
+                    match equipment::grind(&mut self.inv) {
+                        Ok(levels) => {
+                            self.level += levels;
+                            self.say(format!("Enchantments removed: {levels} levels back"));
+                        }
+                        Err(e) => self.say(e.into()),
+                    }
                 }
             }
             Action::Enchant(kind) => {

@@ -2,6 +2,7 @@
 //! mirrored, as in Minecraft. One ingredient is consumed from each occupied cell.
 use crate::items::{self::*, Kind};
 use crate::world::*;
+use crate::catalogue as c;
 
 fn pattern(r: &Recipe) -> Option<(usize, Vec<Item>)> {
     let p = r.ins.first()?.0;
@@ -50,6 +51,40 @@ fn pattern(r: &Recipe) -> Option<(usize, Vec<Item>)> {
                 (3, vec![p, p, p, p, middle, p, p, p, p])
             }
             SNOW => (2, vec![p, p, p, p]),
+            PAPER => (3, vec![p, p, p]),
+            CLAY | BRICK => (2, vec![p, p, p, p]),
+            i if i == cat(c::BOOKSHELF) => {
+                let b = r.ins[1].0;
+                (3, vec![p, p, p, b, b, b, p, p, p])
+            }
+            i if i == cat(c::CHISELED_STONE_BRICKS) || i == cat(c::CHISELED_SANDSTONE) || i == cat(c::CHISELED_SLATE) => (1, vec![p, p]),
+            i if [c::CUT_SANDSTONE, c::RED_SANDSTONE, c::CUT_RED_SANDSTONE, c::POLISHED_SLATE, c::SLATE_BRICKS, c::SLATE_TILES]
+                .iter()
+                .any(|&row| i == cat(row)) =>
+            {
+                (2, vec![p, p, p, p])
+            }
+            // dye in the middle of eight terracotta
+            i if (cat(c::TERRACOTTA)..cat(c::TERRACOTTA + 16)).contains(&i) => {
+                let dye = r.ins[1].0;
+                (3, vec![p, p, p, p, dye, p, p, p, p])
+            }
+            i if i == cat(c::SMOKER) => {
+                let log = r.ins[1].0;
+                (3, vec![0, log, 0, log, p, log, 0, log, 0])
+            }
+            i if i == cat(c::BLAST_FURNACE) => {
+                let smooth = r.ins[2].0;
+                (3, vec![p, p, p, p, FURNACE, p, smooth, smooth, smooth])
+            }
+            i if i == cat(c::SMITHING_TABLE) || i == cat(c::FLETCHING_TABLE) || i == cat(c::CARTOGRAPHY_TABLE) => {
+                let wood = r.ins[1].0;
+                (2, vec![p, p, wood, wood, wood, wood])
+            }
+            i if i == cat(c::STONECUTTER) => (3, vec![0, p, 0, STONE, STONE, STONE]),
+            i if i == cat(c::GRINDSTONE) => (3, vec![p, SLAB + 2, p, PLANKS, 0, PLANKS]),
+            i if i == cat(c::LOOM) => (2, vec![p, p, PLANKS, PLANKS]),
+            i if i == cat(c::LANTERN) => (3, vec![p, p, p, p, TORCH, p, p, p, p]),
             i if stair_material(i).is_some() => (3, vec![p, 0, 0, p, p, 0, p, p, p]),
             i if slab_material(i).is_some() => (3, vec![p, p, p]),
             _ => return None,
@@ -231,9 +266,51 @@ mod tests {
         assert_eq!(made([MUSHROOM, MUSHROOM, BERRIES, BERRIES, BOWL, 0, 0, 0, 0], true), Some((STEW, 1)));
     }
     #[test]
+    fn block_list_recipes_match_minecraft() {
+        use crate::catalogue as c;
+        let (i, p, f) = (IRON_INGOT, PLANKS, FURNACE);
+        assert_eq!(made([i; 9], true), Some((IRON_BLOCK, 1)));
+        assert_eq!(made([STONE, STONE, 0, STONE, STONE, 0, 0, 0, 0], false), Some((STONE_BRICK, 4)));
+        assert_eq!(made([SAND, SAND, 0, SAND, SAND, 0, 0, 0, 0], false), Some((SANDSTONE, 1)));
+        let ss = cat(c::SMOOTH_STONE);
+        assert_eq!(made([i, i, i, i, f, i, ss, ss, ss], true), Some((cat(c::BLAST_FURNACE), 1)));
+        assert_eq!(made([0, LOG, 0, LOG, f, LOG, 0, LOG, 0], true), Some((cat(c::SMOKER), 1)));
+        let n = IRON_NUGGET;
+        assert_eq!(made([n, n, n, n, TORCH, n, n, n, n], true), Some((cat(c::LANTERN), 1)));
+        assert_eq!(made([p, p, p, BOOK, BOOK, BOOK, p, p, p], true), Some((cat(c::BOOKSHELF), 1)));
+        assert_eq!(made([i, i, 0, p, p, 0, p, p, 0], true), Some((cat(c::SMITHING_TABLE), 1)));
+        assert_eq!(made([0, i, 0, STONE, STONE, STONE, 0, 0, 0], true), Some((cat(c::STONECUTTER), 1)));
+        let t = TERRACOTTA;
+        assert_eq!(made([t, t, t, t, DYE + 14, t, t, t, t], true), Some((cat(c::TERRACOTTA + 14), 8)));
+        assert_eq!(made([REED_ITEM, REED_ITEM, REED_ITEM, 0, 0, 0, 0, 0, 0], true), Some((PAPER, 3)));
+        assert_eq!(made([BOOK, CRYSTAL, 0, 0, 0, 0, 0, 0, 0], true), None);
+        // stonecutter recipes are the recipe book's, at the stonecutter, never the grid's
+        assert_eq!(made([STONE, 0, 0, 0, 0, 0, 0, 0, 0], true), None);
+        assert!(RECIPES.iter().any(|r| r.station == STONECUTTER && r.ins == [(STONE, 1)] && r.out == (SLAB + 3, 2)));
+        for r in RECIPES {
+            assert!(r.station == AIR || STATIONS.contains(&r.station), "{}", name(r.out.0));
+            assert!(valid(r.out.0) && r.ins.iter().all(|&(i, n)| valid(i) && n > 0), "{}", name(r.out.0));
+        }
+    }
+    #[test]
+    fn grindstones_refund_levels_and_anvils_wear_out() {
+        let mut inv = Inventory::new();
+        inv.held = Stack { enchants: 2 | 1 << 2, ..Stack::new(IRON_PICK, 1) };
+        // efficiency II (3 + 6 levels) and unbreaking I (3): half of 12 back
+        assert_eq!(crate::equipment::grind(&mut inv), Ok(6));
+        assert_eq!(inv.held.enchants, 0);
+        assert!(crate::equipment::grind(&mut inv).is_err());
+        use crate::catalogue::{block, CHIPPED_ANVIL, DAMAGED_ANVIL};
+        let chipped = crate::equipment::worn_anvil(ANVIL);
+        assert_eq!((chipped, crate::equipment::worn_anvil(chipped)), (block(CHIPPED_ANVIL), block(DAMAGED_ANVIL)));
+        assert_eq!(crate::equipment::worn_anvil(block(DAMAGED_ANVIL)), AIR);
+        assert!(crate::catalogue::is_anvil(chipped) && is_shaped(ANVIL) && is_shaped(chipped));
+        assert_eq!(item_of(chipped), cat(CHIPPED_ANVIL));
+    }
+    #[test]
     fn new_items_are_items_and_keep_minecraft_rules() {
-        for i in BOWL..ITEM_END {
-            assert!(valid(i) && !is_block(i) && name(i) != "?" && !desc(i).is_empty(), "item {i}");
+        for i in BOWL..PLAIN_END {
+            assert!(valid(i) && is_block(i) == (i == REED_ITEM) && name(i) != "?" && !desc(i).is_empty(), "item {i}");
         }
         assert_eq!(max_stack(SNOWBALL), 16);
         assert_eq!((food(APPLE), food(GOLDEN_CARROT), food(ROTTEN_FLESH)), (4.0, 6.0, 4.0));

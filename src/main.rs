@@ -18,7 +18,9 @@ mod equipment;
 mod farming;
 mod crafting;
 mod controls;
+mod blockinfo;
 mod building;
+mod catalogue;
 mod combat;
 mod persistence;
 mod inventory_ui;
@@ -235,12 +237,39 @@ fn item_stats(st: Stack) -> String {
     v.join("    ")
 }
 
+/// A block's properties, as Minecraft's block pages list them.
+fn block_stats(item: Item) -> String {
+    if !items::is_block(item) {
+        return String::new();
+    }
+    let b = items::block_of(item);
+    let p = blockinfo::props(b);
+    if !p.hardness.is_finite() {
+        return String::new();
+    }
+    let num = |v: f32| if v.fract() == 0.0 { format!("{v:.0}") } else { format!("{v}") };
+    let mut v = vec![format!("Hardness {}", num(p.hardness)), format!("Blast resistance {}", num(p.blast))];
+    let tool = blockinfo::tool_name(p.tool);
+    v.push(match items::tier_needed(b) {
+        0 => tool.to_string(),
+        1 => format!("{tool} required"),
+        2 => "Stone pickaxe or better".into(),
+        3 => "Iron pickaxe or better".into(),
+        _ => "Crystal pickaxe or better".into(),
+    });
+    if p.burn > 0.0 {
+        v.push(format!("Burns {} s", num(p.burn)));
+    }
+    v.push(format!("Stacks to {}", items::max_stack(item)));
+    v.join("    ")
+}
+
 /// The name, kind, description and numbers of the item under the mouse.
 fn draw_tip(ui: &mut Ui, st: Stack, wf: f32, hf: f32) {
     let (font, s) = (ui.font, ui.s);
     let (px, py) = (ui.ptr.x, ui.ptr.y);
-    let (name, kind, desc, stats) = (items::name(st.item), items::kind(st.item), items::desc(st.item), item_stats(st));
-    let lines: Vec<(&str, usize, [u8; 4])> = [(name, BODY, ACCENT), (kind, SMALL, DIM), (desc, SMALL, TEXT), (stats.as_str(), SMALL, [150, 210, 255, 255])]
+    let (name, kind, desc, stats, props) = (items::name(st.item), items::kind(st.item), items::desc(st.item), item_stats(st), block_stats(st.item));
+    let lines: Vec<(&str, usize, [u8; 4])> = [(name, BODY, ACCENT), (kind, SMALL, DIM), (desc, SMALL, TEXT), (stats.as_str(), SMALL, [150, 210, 255, 255]), (props.as_str(), SMALL, [200, 190, 150, 255])]
         .into_iter()
         .filter(|l| !l.0.is_empty())
         .collect();
@@ -386,6 +415,8 @@ enum Action {
     ToggleEquipment,
     Repair,
     Enchant(equipment::Enchant),
+    /// strip the held gear's enchantments at a grindstone
+    Grind,
     ToggleCraftable,
     /// click on (true) or away from (false) the search box
     Search(bool),
@@ -1630,7 +1661,8 @@ impl Game {
     }
 
     fn near_station(&self, b: Block) -> bool {
-        b == AIR || self.world.block_near(self.player.pos + Vec3::Y, 4, b)
+        // (a worn anvil is still an anvil)
+        b == AIR || self.world.find_near(self.player.pos + Vec3::Y, 4, |o| o == b || (b == ANVIL && catalogue::is_anvil(o))).is_some()
     }
 
     fn respawn(&mut self) {
@@ -2048,11 +2080,31 @@ impl Game {
         // torches on the west and north walls
         self.world.set_block(ox + 1, y0 + 2, oz + 2, WALL_TORCH);
         self.world.set_block(ox + 3, y0 + 2, oz + 1, WALL_TORCH + 2);
+        if std::env::var_os("CUBEWILD_TEST_BLOCKS").is_some() {
+            // every catalogue block on a stone floor south of the hut, a gap between rows
+            for (i, _) in catalogue::DEFS.iter().enumerate() {
+                let (x, z) = (ox - 3 + (i % 13) as i32, oz + 9 + (i / 13) as i32 * 2);
+                for dz in 0..2 {
+                    self.world.set_block_bg(x, y0 - 1, z + dz, STONE);
+                    for y in y0..y0 + 3 {
+                        self.world.set_block_bg(x, y, z + dz, AIR);
+                    }
+                }
+                self.world.set_block_bg(x, y0, z, catalogue::block(i));
+            }
+        }
         let p = &mut self.player;
         if inside {
             (p.pos, p.yaw, p.pitch) = (Vec3::new(ox as f32 + 2.5, y0 as f32 + 0.01, oz as f32 + 3.5), 1.2, 0.0);
         } else {
             (p.pos, p.yaw, p.pitch) = (Vec3::new(ox as f32 - 2.6, y0 as f32 + 0.01, oz as f32 + 2.2), 1.35, -0.05);
+        }
+        if std::env::var_os("CUBEWILD_TEST_BLOCKS").is_some() {
+            // look over the showcase from a pillar
+            for y in y0..y0 + 4 {
+                self.world.set_block_bg(ox + 3, y, oz + 7, STONE);
+            }
+            (p.pos, p.yaw, p.pitch) = (Vec3::new(ox as f32 + 3.5, y0 as f32 + 4.01, oz as f32 + 7.5), 0.0, -0.75);
         }
         if std::env::var_os("CUBEWILD_TEST_BOAT").is_some() {
             // a boat on the yard in front of the hut
@@ -3253,10 +3305,15 @@ impl Game {
                     let mh = 2.0 * head + top_h + 3.0 * slot + 10.0 * s + slot + pad;
                     let (mx, wy) = ((cx - mw * 0.5).round(), ((hf - mh) * 0.5).round());
                     draw_window(&mut ui, mx, wy, mw, mh);
-                    ui.text(mx + pad, wy + 11.0 * s, HEAD, "Furnace", INK);
-                    ui.text_right(mx + mw - pad, wy + 18.0 * s, SMALL, "Ore or food on top, fuel below", INK_DIM);
-                    let mut tip: Option<Stack> = None;
                     let f = self.furnaces.get(&self.chest_at).copied().unwrap_or_default();
+                    let (title, hint) = match f.kind {
+                        furnace::SMOKER => ("Smoker", "Food on top, fuel below. Twice as fast"),
+                        furnace::BLAST => ("Blast Furnace", "Ore or metal gear on top, fuel below. Twice as fast"),
+                        _ => ("Furnace", "Ore or food on top, fuel below"),
+                    };
+                    ui.text(mx + pad, wy + 11.0 * s, HEAD, title, INK);
+                    ui.text_right(mx + mw - pad, wy + 18.0 * s, SMALL, hint, INK_DIM);
+                    let mut tip: Option<Stack> = None;
                     // input over the fire over the fuel, an arrow, then the output
                     let col = mx + mw * 0.5 - slot * 2.2;
                     let (ix, iy) = (col, wy + head);
@@ -3528,7 +3585,8 @@ impl ApplicationHandler for App {
             }
             WindowEvent::Resized(sz) => g.resize(sz.width, sz.height),
             WindowEvent::Focused(false) => {
-                if g.screen == Screen::Play && g.bench.is_none() {
+                // (CUBEWILD_NO_PAUSE keeps playing unfocused, for automated looks)
+                if g.screen == Screen::Play && g.bench.is_none() && std::env::var_os("CUBEWILD_NO_PAUSE").is_none() {
                     g.goto(Screen::Pause);
                 }
             }
@@ -3624,7 +3682,7 @@ impl ApplicationHandler for App {
                 if y != 0.0 && g.screen == Screen::Play {
                     g.sel = (g.sel as i32 + if y < 0.0 { 1 } else { -1 }).rem_euclid(9) as usize;
                 } else if y != 0.0 && g.screen == Screen::Inventory {
-                    let max = if g.mode == Mode::Creative { items::ITEM_END as usize } else { RECIPES.len() } as i32 / RECIPE_COLS as i32;
+                    let max = if g.mode == Mode::Creative { (1..items::ITEM_END).filter(|&i| items::valid(i)).count() } else { RECIPES.len() } as i32 / RECIPE_COLS as i32;
                     g.recipe_scroll = (g.recipe_scroll as i32 + if y < 0.0 { 1 } else { -1 }).clamp(0, max) as usize;
                 }
             }

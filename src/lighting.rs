@@ -12,6 +12,7 @@ pub fn emission(b: Block) -> u8 {
         LAMP | SUNSHARD => 15,
         b if is_lava(b) => 15,
         GLOWCAP => 12,
+        b if crate::catalogue::def(b).is_some_and(|d| d.light > 0) => crate::catalogue::def(b).unwrap().light,
         b if is_gate(b) => 11,
         _ => 0,
     }

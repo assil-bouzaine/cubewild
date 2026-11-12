@@ -200,8 +200,14 @@ impl Game {
                         continue;
                     }
                     let b = self.world.get_block(p.x, p.y, p.z);
+                    // (Minecraft's blast resistance: the blast weakens with distance, and
+                    // tough blocks such as cinderstone shrug it off)
+                    let force = radius * (0.7 + 0.6 * self.rng.f()) - d * 0.75;
+                    if force <= (crate::blockinfo::props(b).blast + 0.3) * 0.3 {
+                        continue;
+                    }
                     // (chests and furnaces are sturdy enough to keep what they hold)
-                    if is_fluid(b) || matches!(b, AIR | BEDROCK | FURNACE) || building::is_chest(b) {
+                    if is_fluid(b) || matches!(b, AIR | BEDROCK) || building::is_chest(b) || furnace::kind_of(b).is_some() {
                         continue;
                     }
                     edits.push((p, AIR));
@@ -265,7 +271,10 @@ impl Game {
 
     pub(super) fn survive(&mut self, input: &Input, dt: f32) {
         if self.player.impact > 13.5 {
-            let d = (self.player.impact - 13.5) * 0.95;
+            // (as in Minecraft, landing on a hay bale takes 80% off the fall)
+            let p = (self.player.pos - Vec3::Y * 0.1).floor().as_ivec3();
+            let hay = self.world.get_block(p.x, p.y, p.z) == crate::catalogue::block(crate::catalogue::HAY_BALE);
+            let d = (self.player.impact - 13.5) * 0.95 * if hay { 0.2 } else { 1.0 };
             self.hurt(d);
         }
         if self.player.impact > 6.0 && self.mode == Mode::Survival {
@@ -450,7 +459,7 @@ impl Game {
                 if building::is_sign(b) {
                     self.signs.remove(&p);
                 }
-                if b == FURNACE {
+                if furnace::kind_of(b).is_some() {
                     // a broken furnace spills what it held
                     if let Some(f) = self.furnaces.remove(&p) {
                         for st in f.slots {
@@ -481,6 +490,9 @@ impl Game {
                     }
                     BERRY_BUSH => self.spill(at, drop, 2),
                     SNOW => self.spill(at, drop, 4),
+                    CLAY if drop == items::CLAY_BALL => self.spill(at, drop, 4),
+                    // (a bookshelf breaks into its three books)
+                    b if b == crate::catalogue::block(crate::catalogue::BOOKSHELF) && drop != AIR => self.spill(at, items::BOOK, 3),
                     _ => self.spill(at, drop, 1),
                 }
                 if is_leaves(b) && self.rng.f() < 0.3 {
@@ -523,8 +535,13 @@ impl Game {
                     }
                 }
                 if drop == AIR && items::tier_needed(b) > 0 && !creative {
-                    let need = if items::tier_needed(b) >= 3 { "an iron" } else { "a stone" };
-                    self.say(format!("{} needs {need} pickaxe or better", items::name(b)));
+                    let need = match items::tier_needed(b) {
+                        1 => "a",
+                        2 => "a stone",
+                        3 => "an iron",
+                        _ => "a crystal",
+                    };
+                    self.say(format!("{} needs {need} pickaxe or better", items::name(items::item_of(b))));
                 }
                 if !is_plant(b) && !is_torch(b) {
                     self.wear_held();
@@ -548,7 +565,7 @@ impl Game {
                     // (a stand of reeds falls whole)
                     let mut y = p.y + 2;
                     while above == REEDS && self.world.get_block(p.x, y, p.z) == REEDS && self.world.set_block(p.x, y, p.z, AIR) {
-                        self.spill(up, items::FIBER, 1);
+                        self.spill(up, items::REED_ITEM, 1);
                         y += 1;
                     }
                 }

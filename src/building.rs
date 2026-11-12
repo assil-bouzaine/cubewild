@@ -668,9 +668,9 @@ impl Game {
                     self.goto(Screen::Inventory);
                     return;
                 }
-                FURNACE if !sneak => {
+                b if furnace::kind_of(b).is_some() && !sneak => {
                     self.chest_at = p;
-                    self.furnaces.entry(p).or_default();
+                    self.furnaces.entry(p).or_default().kind = furnace::kind_of(b).unwrap();
                     self.goto(Screen::Furnace);
                     return;
                 }
@@ -914,6 +914,17 @@ impl Game {
                 } else {
                     (q, building::slab(mat, high))
                 }
+            }
+            items::REED_ITEM => {
+                // (Minecraft's sugar cane: on sand, dirt or grass with water beside the
+                // ground, or on top of more reeds)
+                let ground = clicked == SAND || clicked == RED_SAND || clicked == DIRT || is_grassy(clicked);
+                let wet = SIDE_DIR.iter().any(|&(dx, dz)| is_water(self.world.get_block(p.x + dx, p.y, p.z + dz)));
+                if n.y != 1 || !(clicked == REEDS || (ground && wet)) {
+                    self.say("Reeds grow on sand, dirt or grass beside water".into());
+                    return;
+                }
+                (q, REEDS)
             }
             CHEST => {
                 let clicked_at = (n.y == 0 && building::is_chest(clicked)).then_some(p);

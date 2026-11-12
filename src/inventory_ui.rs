@@ -19,7 +19,7 @@ impl Game {
         let wy = ((hf - mh) * 0.5).round();
         let mut tip: Option<Stack> = None;
         let mut tip_text: Option<&str> = None;
-        let stations = [(WORKBENCH, self.near_station(WORKBENCH)), (FURNACE, self.near_station(FURNACE))];
+        let stations = items::STATIONS.map(|b| (b, self.near_station(b)));
         let reachable = |b: Block| b == AIR || stations.iter().any(|&(st, near)| st == b && near);
 
         if self.mode == Mode::Creative {
@@ -294,7 +294,8 @@ impl Game {
         // crafting: the picked recipe's ingredients, an arrow, and the result to take
         let kx = fx + fw + 14.0 * s;
         let kw = mx + mw - pad - kx;
-        let stations_available = self.near_station(ANVIL) || self.near_station(ENCHANTING_TABLE);
+        let grindstone = self.near_station(catalogue::block(catalogue::GRINDSTONE));
+        let stations_available = self.near_station(ANVIL) || self.near_station(ENCHANTING_TABLE) || grindstone;
         let button_w = if stations_available { (kw - 5.0 * s) * 0.5 } else { kw };
         if ui.button(kx, ty + 2.0 * s, button_w, 25.0 * s, if self.grid_open { "Recipes" } else { "Grid" }, true) {
             clicks.push(Action::ToggleGrid);
@@ -310,7 +311,7 @@ impl Game {
                 let bench = self.near_station(WORKBENCH);
                 let size = if bench { 3 } else { 2 };
                 let small = 45.0 * s;
-                ui.text(kx, ty + 3.0 * s, SMALL, if bench { "Workbench: 3 x 3" } else { "Inventory: 2 x 2" }, INK_DIM);
+                ui.text(kx, ty + 3.0 * s, SMALL, if bench { "Crafting table: 3 x 3" } else { "Inventory: 2 x 2" }, INK_DIM);
                 for y in 0..size {
                     for x in 0..size {
                         let i = y * 3 + x;
@@ -339,6 +340,11 @@ impl Game {
                 ui.text(kx, ty + 52.0 * s, SMALL, &format!("{} levels | 1 crystal per enchant", self.level), INK_DIM);
                 if self.near_station(ANVIL) && ui.button(kx, ty + 75.0 * s, kw, 26.0 * s, "Repair (1 level + material)", self.inv.held.wear > 0) {
                     clicks.push(Action::Repair);
+                }
+                // below the anvil's and enchanting table's buttons, whichever are near
+                let grind_y = if self.near_station(ENCHANTING_TABLE) { 192.0 } else if self.near_station(ANVIL) { 105.0 } else { 75.0 };
+                if grindstone && ui.button(kx, ty + grind_y * s, kw, 26.0 * s, "Grindstone: remove enchantments", self.inv.held.enchants != 0) {
+                    clicks.push(Action::Grind);
                 }
                 if self.near_station(ENCHANTING_TABLE) {
                     for (j, kind) in equipment::Enchant::ALL.into_iter().enumerate() {
@@ -416,11 +422,11 @@ impl Game {
                     .map(|&(i, n)| format!("{} {}", n - self.inv.count(i), items::name(i)))
                     .collect();
                 let (line, col) = if !at_station {
-                    (format!("Stand near a {}", items::name(r.station)), INK_BAD)
+                    (format!("Stand near a {}", items::name(items::item_of(r.station))), INK_BAD)
                 } else if !missing.is_empty() {
                     (format!("Need {}", missing.join(", ")), INK_BAD)
                 } else if r.station != AIR {
-                    (format!("Ready at the {}", items::name(r.station)), INK_GOOD)
+                    (format!("Ready at the {}", items::name(items::item_of(r.station))), INK_GOOD)
                 } else {
                     ("Ready to craft by hand".to_string(), INK_GOOD)
                 };

@@ -21,9 +21,11 @@ pub const NEW_TEX: usize = ARM_TEX + 2;
 /// chest halves, the latch, beds, and the chest and bed icons (see `furniture_pixel`)
 pub const FURNITURE_TEX: usize = NEW_TEX + 15;
 /// icons of the items added after the furniture (see `items::icon`)
-pub const MORE_ICONS: usize = FURNITURE_TEX + 18;
+pub const MORE_ICONS: usize = FURNITURE_TEX + 19;
 pub const MORE_ICON_COUNT: usize = 64;
-pub const LAYERS: usize = MORE_ICONS + MORE_ICON_COUNT;
+/// the block catalogue's textures (see `catalogue::pixel`)
+pub const CAT_TEX: usize = MORE_ICONS + MORE_ICON_COUNT;
+pub const LAYERS: usize = CAT_TEX + crate::catalogue::layer_count();
 /// icons of the pyre ingot and the eight pieces of pyre gear (`items::PYRE_INGOT` + n),
 /// in the original spare layers below the item icons
 pub const PYRE_ICONS: usize = EXTRA_TEX + 4;
@@ -519,13 +521,23 @@ fn pixel(layer: usize, x: i32, y: i32) -> [u8; 4] {
                 }
             }
         }
+        l if l >= CAT_TEX => crate::catalogue::pixel(l - CAT_TEX, x, y),
         l if l >= MORE_ICONS => crate::icons::pixel(l - MORE_ICONS, x, y),
         l if l >= FURNITURE_TEX => furniture_pixel(l - FURNITURE_TEX, x, y),
         l if l >= NEW_TEX => {
             let k = l - NEW_TEX;
             match k {
-                0 => { let v = 68 + ((x * 13 + y * 7) % 18) as u8; [v, v, v + 5, 255] },
-                1 => if y < 3 { [125, 35, 54, 255] } else if x % 7 < 2 { [60, 215, 210, 255] } else { [28, 30, 48, 255] },
+                // anvil: dark wrought iron with a few bright scuffs
+                0 => shade([70.0, 70.0, 76.0], 0.9 + h(760, x, y) * 0.14 + if (x * 7 + y * 3) % 23 == 0 { 0.3 } else { 0.0 }),
+                // enchanting table sides (it stands 12/16 high: rows 4.. show): the cloth
+                // hangs over the top edge above dark stone
+                1 => {
+                    if y <= 6 {
+                        shade([150.0, 34.0, 44.0], if y == 6 { 0.7 } else { 0.9 + h(761, x, y) * 0.1 })
+                    } else {
+                        shade([40.0, 30.0, 48.0], 0.85 + h(762, x / 2, y / 2) * 0.25)
+                    }
+                }
                 3 => { let c = pixel(50, x, y); [(c[0] as f32 * 0.63) as u8, (c[1] as f32 * 0.63) as u8, (c[2] as f32 * 0.63) as u8, 255] },
                 4..=11 => { let stage = (k - 4) % 4; let mut c = pixel(51 + stage, x, y); if stage == 3 && y > 10 && c[3] > 0 { c = if k < 8 { [222, 119, 35, 255] } else { [169, 124, 64, 255] }; } c },
                 12..=14 => { if (x - 8).abs() + (y - 8).abs() > 7 { [0, 0, 0, 0] } else if k == 12 && y < 5 { [66, 153, 40, 255] } else if k == 12 { [234, 128, 30, 255] } else { [if k == 13 { 180 } else { 205 }, 140, 72, 255] } },
@@ -728,6 +740,18 @@ fn furniture_pixel(k: usize, x: i32, y: i32) -> [u8; 4] {
         // the head end and the foot half's sides
         15 => bed_side(x, y, false),
         16 => bed_side(x, y, true),
+        // the enchanting table's top: red cloth on dark stone, crystals at the corners
+        18 => {
+            let e = x.min(y).min(15 - x).min(15 - y);
+            let corner = (x <= 2 || x >= 13) && (y <= 2 || y >= 13);
+            if corner {
+                shade([96.0, 220.0, 214.0], if (x + y) % 3 == 0 { 1.15 } else { 0.85 })
+            } else if e <= 1 {
+                shade([40.0, 30.0, 48.0], 0.9 + h(723, x, y) * 0.2)
+            } else {
+                shade([150.0, 34.0, 44.0], if e == 2 { 0.75 } else { 0.92 + h(724, x, y) * 0.1 })
+            }
+        }
         // the bed's icon: a bed from the side, pillow at the left
         _ => {
             let wood = [150.0, 108.0, 60.0];
@@ -1556,7 +1580,7 @@ mod tests {
     use super::*;
     #[test]
     fn new_equipment_crops_and_station_icons_have_visible_pixels() {
-        for item in crate::items::ANVIL_ITEM..crate::items::ITEM_END {
+        for item in (crate::items::ANVIL_ITEM..crate::items::ITEM_END).filter(|&i| crate::items::valid(i)) {
             let layer=crate::items::icon(item) as usize;
             assert!(layer<LAYERS,"item {item} has an out-of-range icon");
             assert!((0..16).any(|y|(0..16).any(|x|pixel(layer,x,y)[3]>0)),"item {item} has an empty icon");

@@ -93,6 +93,28 @@ pub fn enchant(inv: &mut Inventory, levels: &mut u32, kind: Enchant, creative: b
     Ok(())
 }
 
+/// A grindstone strips the held gear's enchantments and gives back half the levels
+/// they cost (Minecraft returns part of the experience).
+pub fn grind(inv: &mut Inventory) -> Result<u32, &'static str> {
+    let st = inv.held;
+    if st.is_empty() || st.enchants == 0 {
+        return Err("Put enchanted equipment on the cursor");
+    }
+    let spent: u32 = Enchant::ALL.iter().map(|e| (1..=e.level(st) as u32).map(|l| l * 3).sum::<u32>()).sum();
+    inv.held.enchants = 0;
+    Ok(spent / 2)
+}
+
+/// The next stage of an anvil's wear: chipped, damaged, then gone.
+pub fn worn_anvil(b: crate::world::Block) -> crate::world::Block {
+    use crate::catalogue::{block, CHIPPED_ANVIL, DAMAGED_ANVIL};
+    match b {
+        crate::world::ANVIL => block(CHIPPED_ANVIL),
+        b if b == block(CHIPPED_ANVIL) => block(DAMAGED_ANVIL),
+        _ => crate::world::AIR,
+    }
+}
+
 pub fn mining_multiplier(st: Stack) -> f32 {
     1.0 + Enchant::Efficiency.level(st) as f32 * 0.45
 }
@@ -161,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    fn upgrading_keeps_damage_and_enchantments_in_both_crafting_modes() {
+    fn upgrading_keeps_damage_and_enchantments_and_needs_the_smithing_table() {
         let recipe = RECIPES.iter().find(|r| r.out.0 == PYRE_PICK).unwrap();
         let source = Stack { wear: 72, enchants: 5, ..Stack::new(CRYSTAL_PICK, 1) };
         let mut inv = Inventory::new();
@@ -175,7 +197,9 @@ mod tests {
         for i in 1..4 {
             inv.grid[i] = Stack::new(PYRE_INGOT, 1);
         }
-        assert!(crate::crafting::craft(&mut inv, 3, true, false));
-        assert_eq!((inv.held.wear, inv.held.enchants), (72, 5));
+        // (as in Minecraft, the upgrade is the smithing table's, not the crafting grid's)
+        assert_eq!(recipe.station, crate::catalogue::block(crate::catalogue::SMITHING_TABLE));
+        assert!(!crate::crafting::craft(&mut inv, 3, true, false));
+        assert_eq!(inv.grid[0], source);
     }
 }

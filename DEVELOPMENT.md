@@ -31,6 +31,37 @@ Report measured limits honestly; compilation alone does not verify interactive p
 - [Item list](https://minecraft.wiki/w/Item): every item, linking to its recipe and behaviour
   (block pages too, e.g. [Chest](https://minecraft.wiki/w/Chest), [Bed](https://minecraft.wiki/w/Bed))
 - [Item and block IDs](https://minecraft-ids.grahamedgecombe.com/): a compact checklist of all items
+- [Block list](https://minecraftsearch.com/blocks): every block by category (crafting,
+  redstone, functional, decorative, nature), each with hardness, blast resistance, tool,
+  burn time, stack size and recipes
+
+## Blocks from Minecraft's block list
+
+Every block's Minecraft properties live in `src/blockinfo.rs`; mining time, drops,
+fuel, explosions and tooltips read them. New blocks are rows of `src/catalogue.rs`
+(world id `448 + row`, item id `1024 + row`, appended only), each with its name,
+procedural textures, properties, shape and light. Adding a block is adding a row,
+its recipes in `items::RECIPES` and, for a shaped recipe, its pattern in `crafting.rs`.
+
+Done (phase 1): Minecraft properties and mining rules for every existing block; the
+crafting category's stations (crafting table, furnace, smoker, blast furnace, smithing
+table, stonecutter, grindstone, anvil and its chipped/damaged stages, enchanting table
+with Minecraft's shape and recipe, fletching/cartography tables and loom as placeable
+blocks); 52 new blocks; recipe fixes (metal blocks, stone bricks, sandstone, clay and
+bricks, mossy cobblestone).
+
+Next phases, by how well they fit:
+1. Campfire (cooking on top, light, smoke), brewing stand (needs potions).
+2. More shapes: walls, carpets (16 colours), iron bars, stained glass and panes (16),
+   hanging lanterns, stairs and slabs for the new stone families (needs new families).
+3. Concrete and concrete powder (16 each; powder falls and sets in water), glazed
+   terracotta.
+4. New wood types (spruce, jungle, acacia, dark oak) for the trees already generated:
+   logs, planks, stairs, slabs, fences, doors, signs.
+5. Nature blocks: pumpkins, melons, flowers, vines, lily pads, mushroom blocks, coral.
+6. Redstone (54 blocks) once there is a power system.
+Stack size stays 99 for now: Minecraft's 64 would cut saved stacks above 64 on load
+(`loot::parse_stack` clamps), so it needs a split-on-load migration first.
 
 ## Items from Minecraft's item list
 

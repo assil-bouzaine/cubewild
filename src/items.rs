@@ -128,7 +128,20 @@ pub const GOLDEN_CARROT: Item = 227;
 pub const BONE_MEAL: Item = 228;
 pub const ROTTEN_FLESH: Item = 229;
 pub const SNOWBALL: Item = 230;
-pub const ITEM_END: Item = 231;
+pub const PAPER: Item = 231;
+pub const BOOK: Item = 232;
+pub const CLAY_BALL: Item = 233;
+/// a fired clay brick (the block of four is `BRICK`)
+pub const BRICK_ITEM: Item = 234;
+/// reeds (Minecraft's sugar cane): planted by water, made into paper
+pub const REED_ITEM: Item = 235;
+/// end of the plain items with icons in `textures::MORE_ICONS`
+pub const PLAIN_END: Item = 236;
+/// the catalogue's block items (`catalogue::ITEM0`..) come last
+pub const ITEM_END: Item = crate::catalogue::ITEM_END;
+pub const fn cat(row: usize) -> Item {
+    crate::catalogue::item(row)
+}
 /// slots in a chest
 pub const CHEST_SLOTS: usize = 27;
 /// first texture layer holding item icons
@@ -138,6 +151,9 @@ pub const ICON_FOOD: u32 = ICON_BASE + 101;
 pub const ICON_AIR: u32 = ICON_BASE + 102;
 
 pub fn is_block(i: Item) -> bool {
+    if crate::catalogue::row_of_item(i).is_some() || i == REED_ITEM {
+        return true;
+    }
     (OAK_GATE..BOWL).contains(&i) || (ANVIL_ITEM..=ENCHANTING_ITEM).contains(&i) || (i != AIR && i < 64) || is_wool_item(i) || (DEEP_ITEM..DEEP_ITEM + DEEP_BLOCKS).contains(&i) || is_extra_item(i) || is_sapling_item(i)
 }
 
@@ -157,6 +173,12 @@ pub fn is_wool_item(i: Item) -> bool {
 pub fn slab_material(i:Item)->Option<Block> {if (SLAB..SLAB_END).contains(&i) {Some(i-SLAB)} else if (EXTRA_SLAB..EXTRA_SLAB+4).contains(&i) {Some(4+i-EXTRA_SLAB)} else {None}}
 pub fn stair_material(i:Item)->Option<Block> {if (STAIRS..STAIRS+4).contains(&i) {Some(i-STAIRS)} else if (EXTRA_STAIRS..EXTRA_STAIRS+4).contains(&i) {Some(4+i-EXTRA_STAIRS)} else {None}}
 pub fn block_of(i: Item) -> Block {
+    if let Some(r) = crate::catalogue::row_of_item(i) {
+        return crate::catalogue::block(r);
+    }
+    if i == REED_ITEM {
+        return REEDS;
+    }
     if let Some(mat)=slab_material(i) {return crate::building::slab(mat,false);}
     if let Some(mat)=stair_material(i) {return crate::building::stairs(mat,0,false);}
     if i==OAK_GATE || i==BIRCH_GATE {return crate::building::FENCE_GATE+(i-OAK_GATE)*4;}
@@ -182,11 +204,20 @@ pub fn dye_colour(i: Item) -> Option<u8> {
 pub fn valid(i: Item) -> bool {
     (i >= GRASS && i <= LAST_BLOCK && i != WATER && i != BEDROCK && !(WHEAT_0..=WHEAT_3).contains(&i))
         || (ICE..=FLOWER_BLUE).contains(&i)
-        || (64..ITEM_END).contains(&i)
+        || (64..PLAIN_END).contains(&i)
+        || crate::catalogue::row_of_item(i).is_some()
 }
 
 pub fn name(i: Item) -> &'static str {
+    if let Some(r) = crate::catalogue::row_of_item(i) {
+        return crate::catalogue::DEFS[r].name;
+    }
     match i {
+        PAPER => "Paper",
+        BOOK => "Book",
+        CLAY_BALL => "Clay Ball",
+        BRICK_ITEM => "Brick",
+        REED_ITEM => "Reeds",
         OAK_GATE => "Oak Fence Gate", BIRCH_GATE => "Birch Fence Gate", SIGN_ITEM => "Sign",
         BOWL => "Bowl",
         APPLE => "Apple",
@@ -205,22 +236,22 @@ pub fn name(i: Item) -> &'static str {
         ANVIL_ITEM => "Anvil",
         ENCHANTING_ITEM => "Enchanting Table",
         SHIELD => "Shield",
-        GRASS => "Grass",
+        GRASS => "Grass Block",
         ICE => "Ice",
         RED_SAND => "Red Sand",
         TERRACOTTA => "Terracotta",
         TERRACOTTA_PALE => "Pale Terracotta",
         TERRACOTTA_DARK => "Dark Terracotta",
-        FLOWER_BLUE => "Blue Flower",
+        FLOWER_BLUE => "Cornflower",
         DIRT => "Dirt",
         STONE => "Stone",
         SAND => "Sand",
-        LOG => "Log",
-        LEAVES => "Leaves",
-        PLANKS => "Planks",
+        LOG => "Oak Log",
+        LEAVES => "Oak Leaves",
+        PLANKS => "Oak Planks",
         COBBLE => "Cobblestone",
         BRICK => "Bricks",
-        SNOW => "Snow",
+        SNOW => "Snow Block",
         GLASS => "Glass",
         STONE_BRICK => "Stone Bricks",
         LEATHER => "Leather Block",
@@ -229,7 +260,7 @@ pub fn name(i: Item) -> &'static str {
         CRYSTAL_ORE => "Crystal Ore",
         SANDSTONE => "Sandstone",
         CACTUS => "Cactus",
-        WORKBENCH => "Workbench",
+        WORKBENCH => "Crafting Table",
         FURNACE => "Furnace",
         TORCH => "Torch",
         LAMP => "Crystal Lamp",
@@ -240,12 +271,12 @@ pub fn name(i: Item) -> &'static str {
         GRAVEL => "Gravel",
         CLAY => "Clay",
         GOLD_ORE => "Gold Ore",
-        TALL_GRASS => "Grass Tuft",
-        FLOWER_RED => "Red Flower",
-        FLOWER_YELLOW => "Yellow Flower",
+        TALL_GRASS => "Short Grass",
+        FLOWER_RED => "Poppy",
+        FLOWER_YELLOW => "Dandelion",
         MUSHROOM => "Mushroom",
         BERRY_BUSH => "Berry Bush",
-        DEAD_BUSH => "Dry Bush",
+        DEAD_BUSH => "Dead Bush",
         BIRCH_PLANKS => "Birch Planks",
         GOLD_BLOCK => "Gold Block",
         IRON_BLOCK => "Iron Block",
@@ -253,7 +284,7 @@ pub fn name(i: Item) -> &'static str {
         CLOTH => "White Wool",
         THATCH => "Thatch",
         FARMLAND => "Farmland",
-        PANE => "Window Pane",
+        PANE => "Glass Pane",
         SLAB => "Oak Slab",
         51 => "Birch Slab",
         52 => "Cobblestone Slab",
@@ -408,7 +439,8 @@ pub fn name(i: Item) -> &'static str {
 
 /// Texture-array layer used as the item's icon.
 pub fn icon(i: Item) -> u32 {
-    if (BOWL..ITEM_END).contains(&i) { return (crate::textures::MORE_ICONS + (i - BOWL) as usize) as u32; }
+    if crate::catalogue::row_of_item(i).is_some() { return crate::catalogue::icon(i); }
+    if (BOWL..PLAIN_END).contains(&i) { return (crate::textures::MORE_ICONS + (i - BOWL) as usize) as u32; }
     if i == CHEST { return CHEST_ICON_LAYER; }
     if i == BED { return BED_ICON_LAYER; }
     if (CARROT..=BAKED_POTATO).contains(&i) { return crate::textures::NEW_TEX as u32 + 12 + (i - CARROT) as u32; }
@@ -448,7 +480,7 @@ pub enum Mat {
     Pyre,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Kind {
     Pick,
     Axe,
@@ -517,18 +549,6 @@ pub fn gear(i: Item) -> Option<(Kind, Mat)> {
 
 fn tool(i: Item, kind: Kind) -> Option<Mat> {
     gear(i).filter(|g| g.0 == kind).map(|g| g.1)
-}
-
-/// Share of the bare-hand time a tool of this material needs.
-fn speed(m: Mat) -> f32 {
-    match m {
-        Mat::Wood | Mat::Leather => 0.31,
-        Mat::Stone => 0.135,
-        Mat::Iron => 0.085,
-        Mat::Gold => 0.06,
-        Mat::Crystal => 0.054,
-        Mat::Pyre => 0.038,
-    }
 }
 
 /// Pickaxe strength: 0 none, 1 wood and gold, 2 stone, 3 iron, 4 crystal.
@@ -623,6 +643,9 @@ pub fn max_stack(i: Item) -> u32 {
 
 /// Short type label shown in tooltips.
 pub fn kind(i: Item) -> &'static str {
+    if let Some(r) = crate::catalogue::row_of_item(i) {
+        return if crate::catalogue::DEFS[r].cat == Cat::Utility { "Utility block" } else { "Block" };
+    }
     match gear(i) {
         Some((Kind::Sword, _)) => "Weapon",
         Some((Kind::Helmet | Kind::Chest | Kind::Legs | Kind::Boots, _)) => "Armour",
@@ -653,7 +676,15 @@ pub fn desc(i: Item) -> &'static str {
         Some(_) => return "Wear it in its armour slot to take less damage.",
         None => {}
     }
+    if let Some(r) = crate::catalogue::row_of_item(i) {
+        return crate::catalogue::DEFS[r].desc;
+    }
     match i {
+        PAPER => "Three reeds make three sheets. For books and maps.",
+        BOOK => "Three paper and a hide. For bookshelves and enchanting tables.",
+        CLAY_BALL => "Smelt it into a brick. Four make a block of clay.",
+        BRICK_ITEM => "Four make a block of bricks.",
+        REED_ITEM => "Plant it on sand, dirt or grass beside water. Three make paper.",
         GRASS | DIRT => "Soft ground. A shovel digs it fastest.",
         ICE => "Frozen water from the cold seas and rivers.",
         RED_SAND => "The rust-coloured sand of the badlands.",
@@ -673,13 +704,13 @@ pub fn desc(i: Item) -> &'static str {
         CRYSTAL_ORE => "Deep underground. Needs an iron pickaxe.",
         GOLD_ORE => "Deep underground. Needs an iron pickaxe.",
         CACTUS => "A prickly desert plant.",
-        WORKBENCH => "Stand near it to craft advanced recipes.",
+        WORKBENCH => "Stand near it to craft on a 3 x 3 grid and use advanced recipes.",
         FURNACE => "Smelts ore and cooks food. Needs fuel: coal, wood or sticks.",
         TORCH => "Place it on a block or wall to light the dark.",
         LAMP => "A bright, steady light.",
         BED => "Right click to set your spawn and sleep through the night.",
         GRAVEL => "Loose stones from the sea bed. May hide flint.",
-        CLAY => "Found under water. Fire it into bricks.",
+        CLAY => "Found under water. Breaks into four clay balls; smelts into terracotta.",
         TALL_GRASS => "Gives plant fibre and sometimes seeds when cut.",
         FLOWER_RED | FLOWER_YELLOW | FLOWER_BLUE => "Brightens up a home.",
         MUSHROOM => "Grows in the woods. Good in a stew.",
@@ -790,6 +821,18 @@ pub struct Recipe {
 
 const fn r(cat: Cat, out: (Item, u32), ins: &'static [(Item, u32)], station: Block) -> Recipe {
     Recipe { out, ins, station, cat }
+}
+
+use crate::catalogue as c;
+const fn cb(row: usize) -> Block {
+    c::block(row)
+}
+const SMITHING: Block = cb(c::SMITHING_TABLE);
+pub const STONECUTTER: Block = cb(c::STONECUTTER);
+/// the stations whose recipes the recipe book offers (besides crafting anywhere)
+pub const STATIONS: [Block; 4] = [WORKBENCH, FURNACE, SMITHING, STONECUTTER];
+const fn tc(colour: usize) -> Item {
+    cat(c::TERRACOTTA + colour)
 }
 
 pub const RECIPES: &[Recipe] = &[
@@ -905,22 +948,22 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Armour, (CRYSTAL_LEGS, 1), &[(CRYSTAL, 7)], WORKBENCH),
     r(Cat::Armour, (CRYSTAL_BOOTS, 1), &[(CRYSTAL, 4)], WORKBENCH),
     // pyre gear is crystal gear forged over with the rare metal
-    r(Cat::Armour, (PYRE_HELMET, 1), &[(CRYSTAL_HELMET, 1), (PYRE_INGOT, 3)], WORKBENCH),
-    r(Cat::Armour, (PYRE_CHEST, 1), &[(CRYSTAL_CHEST, 1), (PYRE_INGOT, 5)], WORKBENCH),
-    r(Cat::Armour, (PYRE_LEGS, 1), &[(CRYSTAL_LEGS, 1), (PYRE_INGOT, 4)], WORKBENCH),
-    r(Cat::Armour, (PYRE_BOOTS, 1), &[(CRYSTAL_BOOTS, 1), (PYRE_INGOT, 2)], WORKBENCH),
-    r(Cat::Tools, (PYRE_PICK, 1), &[(CRYSTAL_PICK, 1), (PYRE_INGOT, 3)], WORKBENCH),
-    r(Cat::Tools, (PYRE_AXE, 1), &[(CRYSTAL_AXE, 1), (PYRE_INGOT, 3)], WORKBENCH),
-    r(Cat::Tools, (PYRE_SHOVEL, 1), &[(CRYSTAL_SHOVEL, 1), (PYRE_INGOT, 1)], WORKBENCH),
-    r(Cat::Combat, (PYRE_SWORD, 1), &[(CRYSTAL_SWORD, 1), (PYRE_INGOT, 2)], WORKBENCH),
+    r(Cat::Armour, (PYRE_HELMET, 1), &[(CRYSTAL_HELMET, 1), (PYRE_INGOT, 3)], SMITHING),
+    r(Cat::Armour, (PYRE_CHEST, 1), &[(CRYSTAL_CHEST, 1), (PYRE_INGOT, 5)], SMITHING),
+    r(Cat::Armour, (PYRE_LEGS, 1), &[(CRYSTAL_LEGS, 1), (PYRE_INGOT, 4)], SMITHING),
+    r(Cat::Armour, (PYRE_BOOTS, 1), &[(CRYSTAL_BOOTS, 1), (PYRE_INGOT, 2)], SMITHING),
+    r(Cat::Tools, (PYRE_PICK, 1), &[(CRYSTAL_PICK, 1), (PYRE_INGOT, 3)], SMITHING),
+    r(Cat::Tools, (PYRE_AXE, 1), &[(CRYSTAL_AXE, 1), (PYRE_INGOT, 3)], SMITHING),
+    r(Cat::Tools, (PYRE_SHOVEL, 1), &[(CRYSTAL_SHOVEL, 1), (PYRE_INGOT, 1)], SMITHING),
+    r(Cat::Combat, (PYRE_SWORD, 1), &[(CRYSTAL_SWORD, 1), (PYRE_INGOT, 2)], SMITHING),
     r(Cat::Building, (EXTRA_ITEM + 1, 4), &[(EXTRA_ITEM + 2, 4)], WORKBENCH),
     r(Cat::Food, (BREAD, 1), &[(WHEAT, 3)], AIR),
     r(Cat::Food, (STEW, 1), &[(MUSHROOM, 2), (BERRIES, 2), (BOWL, 1)], WORKBENCH),
     r(Cat::Food, (GOLDEN_APPLE, 1), &[(GOLD_INGOT, 8), (APPLE, 1)], WORKBENCH),
     r(Cat::Food, (GOLDEN_CARROT, 1), &[(GOLD_NUGGET, 8), (CARROT, 1)], WORKBENCH),
-    r(Cat::Building, (STONE_BRICK, 4), &[(COBBLE, 4)], AIR),
-    r(Cat::Building, (MOSSY_COBBLE, 2), &[(COBBLE, 2), (FIBER, 2)], AIR),
-    r(Cat::Building, (SANDSTONE, 2), &[(SAND, 4)], AIR),
+    r(Cat::Building, (STONE_BRICK, 4), &[(STONE, 4)], AIR),
+    r(Cat::Building, (MOSSY_COBBLE, 1), &[(COBBLE, 1), (FIBER, 1)], AIR),
+    r(Cat::Building, (SANDSTONE, 1), &[(SAND, 4)], AIR),
     r(Cat::Building, (THATCH, 2), &[(FIBER, 3)], AIR),
     r(Cat::Building, (CLOTH, 1), &[(FIBER, 4)], AIR),
     r(Cat::Building, (LEATHER, 1), &[(HIDE, 2)], AIR),
@@ -937,10 +980,12 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building, (SLAB + 3, 6), &[(STONE_BRICK, 3)], WORKBENCH),
     r(Cat::Building, (FENCE, 3), &[(PLANKS, 4), (STICK, 2)], WORKBENCH),
     r(Cat::Building, (BIRCH_FENCE, 3), &[(BIRCH_PLANKS, 4), (STICK, 2)], WORKBENCH),
-    r(Cat::Building, (IRON_BLOCK, 1), &[(IRON_INGOT, 4)], WORKBENCH),
-    r(Cat::Building, (GOLD_BLOCK, 1), &[(GOLD_INGOT, 4)], WORKBENCH),
+    r(Cat::Building, (IRON_BLOCK, 1), &[(IRON_INGOT, 9)], WORKBENCH),
+    r(Cat::Building, (GOLD_BLOCK, 1), &[(GOLD_INGOT, 9)], WORKBENCH),
+    r(Cat::Materials, (IRON_INGOT, 9), &[(IRON_BLOCK, 1)], AIR),
+    r(Cat::Materials, (GOLD_INGOT, 9), &[(GOLD_BLOCK, 1)], AIR),
     r(Cat::Utility, (ANVIL_ITEM, 1), &[(IRON_BLOCK, 3), (IRON_INGOT, 4)], WORKBENCH),
-    r(Cat::Utility, (ENCHANTING_ITEM, 1), &[(EXTRA_ITEM, 4), (CRYSTAL, 2), (FIBER, 3)], WORKBENCH),
+    r(Cat::Utility, (ENCHANTING_ITEM, 1), &[(BOOK, 1), (CRYSTAL, 2), (DEEP_ITEM, 4)], WORKBENCH),
     r(Cat::Combat, (SHIELD, 1), &[(PLANKS, 6), (IRON_INGOT, 1)], WORKBENCH),
 
     r(Cat::Building,(OAK_GATE,1),&[(STICK,4),(PLANKS,2)],WORKBENCH),
@@ -954,6 +999,90 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building,(EXTRA_STAIRS+2,4),&[(EXTRA_ITEM,6)],WORKBENCH),
     r(Cat::Building,(EXTRA_SLAB+3,6),&[(DEEP_ITEM+8,3)],WORKBENCH),
     r(Cat::Building,(EXTRA_STAIRS+3,4),&[(DEEP_ITEM+8,6)],WORKBENCH),
+    // ---- from Minecraft's block list
+    r(Cat::Materials, (PAPER, 3), &[(REED_ITEM, 3)], WORKBENCH),
+    r(Cat::Materials, (BOOK, 1), &[(PAPER, 3), (HIDE, 1)], AIR),
+    r(Cat::Building, (CLAY, 1), &[(CLAY_BALL, 4)], AIR),
+    r(Cat::Building, (BRICK, 1), &[(BRICK_ITEM, 4)], AIR),
+    r(Cat::Building, (cat(c::COAL_BLOCK), 1), &[(COAL, 9)], WORKBENCH),
+    r(Cat::Materials, (COAL, 9), &[(cat(c::COAL_BLOCK), 1)], AIR),
+    r(Cat::Building, (cat(c::CRYSTAL_BLOCK), 1), &[(CRYSTAL, 9)], WORKBENCH),
+    r(Cat::Materials, (CRYSTAL, 9), &[(cat(c::CRYSTAL_BLOCK), 1)], AIR),
+    r(Cat::Building, (cat(c::GEM_BLOCK), 1), &[(GEM, 9)], WORKBENCH),
+    r(Cat::Materials, (GEM, 9), &[(cat(c::GEM_BLOCK), 1)], AIR),
+    r(Cat::Building, (cat(c::PYRE_BLOCK), 1), &[(PYRE_INGOT, 9)], WORKBENCH),
+    r(Cat::Materials, (PYRE_INGOT, 9), &[(cat(c::PYRE_BLOCK), 1)], AIR),
+    r(Cat::Building, (cat(c::HAY_BALE), 1), &[(WHEAT, 9)], WORKBENCH),
+    r(Cat::Food, (WHEAT, 9), &[(cat(c::HAY_BALE), 1)], AIR),
+    r(Cat::Building, (cat(c::BONE_BLOCK), 1), &[(BONE_MEAL, 9)], WORKBENCH),
+    r(Cat::Materials, (BONE_MEAL, 9), &[(cat(c::BONE_BLOCK), 1)], AIR),
+    r(Cat::Building, (cat(c::BOOKSHELF), 1), &[(PLANKS, 6), (BOOK, 3)], WORKBENCH),
+    r(Cat::Building, (cat(c::BOOKSHELF), 1), &[(BIRCH_PLANKS, 6), (BOOK, 3)], WORKBENCH),
+    r(Cat::Building, (cat(c::CHISELED_STONE_BRICKS), 1), &[(SLAB + 3, 2)], AIR),
+    r(Cat::Building, (cat(c::MOSSY_STONE_BRICKS), 1), &[(STONE_BRICK, 1), (FIBER, 1)], AIR),
+    r(Cat::Building, (cat(c::CUT_SANDSTONE), 4), &[(SANDSTONE, 4)], AIR),
+    r(Cat::Building, (cat(c::CHISELED_SANDSTONE), 1), &[(EXTRA_SLAB + 1, 2)], AIR),
+    r(Cat::Building, (cat(c::RED_SANDSTONE), 1), &[(RED_SAND, 4)], AIR),
+    r(Cat::Building, (cat(c::CUT_RED_SANDSTONE), 4), &[(cat(c::RED_SANDSTONE), 4)], AIR),
+    r(Cat::Building, (cat(c::PACKED_ICE), 1), &[(ICE, 9)], WORKBENCH),
+    r(Cat::Building, (cat(c::BLUE_ICE), 1), &[(cat(c::PACKED_ICE), 9)], WORKBENCH),
+    r(Cat::Building, (cat(c::POLISHED_SLATE), 4), &[(EXTRA_ITEM, 4)], AIR),
+    r(Cat::Building, (cat(c::SLATE_BRICKS), 4), &[(cat(c::POLISHED_SLATE), 4)], AIR),
+    r(Cat::Building, (cat(c::SLATE_TILES), 4), &[(cat(c::SLATE_BRICKS), 4)], AIR),
+    r(Cat::Building, (cat(c::CHISELED_SLATE), 1), &[(EXTRA_SLAB + 2, 2)], AIR),
+    r(Cat::Building, (tc(0), 8), &[(TERRACOTTA, 8), (DYE + 0, 1)], WORKBENCH),
+    r(Cat::Building, (tc(1), 8), &[(TERRACOTTA, 8), (DYE + 1, 1)], WORKBENCH),
+    r(Cat::Building, (tc(2), 8), &[(TERRACOTTA, 8), (DYE + 2, 1)], WORKBENCH),
+    r(Cat::Building, (tc(3), 8), &[(TERRACOTTA, 8), (DYE + 3, 1)], WORKBENCH),
+    r(Cat::Building, (tc(4), 8), &[(TERRACOTTA, 8), (DYE + 4, 1)], WORKBENCH),
+    r(Cat::Building, (tc(5), 8), &[(TERRACOTTA, 8), (DYE + 5, 1)], WORKBENCH),
+    r(Cat::Building, (tc(6), 8), &[(TERRACOTTA, 8), (DYE + 6, 1)], WORKBENCH),
+    r(Cat::Building, (tc(7), 8), &[(TERRACOTTA, 8), (DYE + 7, 1)], WORKBENCH),
+    r(Cat::Building, (tc(8), 8), &[(TERRACOTTA, 8), (DYE + 8, 1)], WORKBENCH),
+    r(Cat::Building, (tc(9), 8), &[(TERRACOTTA, 8), (DYE + 9, 1)], WORKBENCH),
+    r(Cat::Building, (tc(10), 8), &[(TERRACOTTA, 8), (DYE + 10, 1)], WORKBENCH),
+    r(Cat::Building, (tc(11), 8), &[(TERRACOTTA, 8), (DYE + 11, 1)], WORKBENCH),
+    r(Cat::Building, (tc(12), 8), &[(TERRACOTTA, 8), (DYE + 12, 1)], WORKBENCH),
+    r(Cat::Building, (tc(13), 8), &[(TERRACOTTA, 8), (DYE + 13, 1)], WORKBENCH),
+    r(Cat::Building, (tc(14), 8), &[(TERRACOTTA, 8), (DYE + 14, 1)], WORKBENCH),
+    r(Cat::Building, (tc(15), 8), &[(TERRACOTTA, 8), (DYE + 15, 1)], WORKBENCH),
+    r(Cat::Utility, (cat(c::SMOKER), 1), &[(FURNACE, 1), (LOG, 4)], WORKBENCH),
+    r(Cat::Utility, (cat(c::SMOKER), 1), &[(FURNACE, 1), (BIRCH_LOG, 4)], WORKBENCH),
+    r(Cat::Utility, (cat(c::BLAST_FURNACE), 1), &[(IRON_INGOT, 5), (FURNACE, 1), (cat(c::SMOOTH_STONE), 3)], WORKBENCH),
+    r(Cat::Utility, (cat(c::SMITHING_TABLE), 1), &[(IRON_INGOT, 2), (PLANKS, 4)], WORKBENCH),
+    r(Cat::Utility, (cat(c::STONECUTTER), 1), &[(IRON_INGOT, 1), (STONE, 3)], WORKBENCH),
+    r(Cat::Utility, (cat(c::GRINDSTONE), 1), &[(STICK, 2), (SLAB + 2, 1), (PLANKS, 2)], WORKBENCH),
+    r(Cat::Utility, (cat(c::FLETCHING_TABLE), 1), &[(FLINT, 2), (PLANKS, 4)], WORKBENCH),
+    r(Cat::Utility, (cat(c::CARTOGRAPHY_TABLE), 1), &[(PAPER, 2), (PLANKS, 4)], WORKBENCH),
+    r(Cat::Utility, (cat(c::LOOM), 1), &[(FIBER, 2), (PLANKS, 2)], WORKBENCH),
+    r(Cat::Utility, (cat(c::LANTERN), 1), &[(IRON_NUGGET, 8), (TORCH, 1)], WORKBENCH),
+    // ---- the stonecutter: one block in, its pieces out (Minecraft's yields)
+    r(Cat::Building, (STONE_BRICK, 1), &[(STONE, 1)], STONECUTTER),
+    r(Cat::Building, (STAIRS + 3, 1), &[(STONE, 1)], STONECUTTER),
+    r(Cat::Building, (SLAB + 3, 2), &[(STONE, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::CHISELED_STONE_BRICKS), 1), &[(STONE, 1)], STONECUTTER),
+    r(Cat::Building, (STAIRS + 3, 1), &[(STONE_BRICK, 1)], STONECUTTER),
+    r(Cat::Building, (SLAB + 3, 2), &[(STONE_BRICK, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::CHISELED_STONE_BRICKS), 1), &[(STONE_BRICK, 1)], STONECUTTER),
+    r(Cat::Building, (STAIRS + 2, 1), &[(COBBLE, 1)], STONECUTTER),
+    r(Cat::Building, (SLAB + 2, 2), &[(COBBLE, 1)], STONECUTTER),
+    r(Cat::Building, (EXTRA_STAIRS, 1), &[(BRICK, 1)], STONECUTTER),
+    r(Cat::Building, (EXTRA_SLAB, 2), &[(BRICK, 1)], STONECUTTER),
+    r(Cat::Building, (EXTRA_STAIRS + 1, 1), &[(SANDSTONE, 1)], STONECUTTER),
+    r(Cat::Building, (EXTRA_SLAB + 1, 2), &[(SANDSTONE, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::CUT_SANDSTONE), 1), &[(SANDSTONE, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::CHISELED_SANDSTONE), 1), &[(SANDSTONE, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::CUT_RED_SANDSTONE), 1), &[(cat(c::RED_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::CHISELED_RED_SANDSTONE), 1), &[(cat(c::RED_SANDSTONE), 1)], STONECUTTER),
+    r(Cat::Building, (EXTRA_STAIRS + 2, 1), &[(EXTRA_ITEM, 1)], STONECUTTER),
+    r(Cat::Building, (EXTRA_SLAB + 2, 2), &[(EXTRA_ITEM, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::POLISHED_SLATE), 1), &[(EXTRA_ITEM, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::SLATE_BRICKS), 1), &[(EXTRA_ITEM, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::SLATE_TILES), 1), &[(EXTRA_ITEM, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::CHISELED_SLATE), 1), &[(EXTRA_ITEM, 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::SLATE_BRICKS), 1), &[(cat(c::POLISHED_SLATE), 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::SLATE_TILES), 1), &[(cat(c::POLISHED_SLATE), 1)], STONECUTTER),
+    r(Cat::Building, (cat(c::SLATE_TILES), 1), &[(cat(c::SLATE_BRICKS), 1)], STONECUTTER),
 ];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -1312,6 +1441,9 @@ pub fn door_item(b: Block) -> Item {
 
 /// The item a block in the world stands for (middle click, and what it drops).
 pub fn item_of(b: Block) -> Item {
+    if let Some(r) = crate::catalogue::row_of_block(b) {
+        return crate::catalogue::item(r);
+    }
     if crate::building::is_fence_gate(b) {return OAK_GATE+((b-crate::building::FENCE_GATE)>>2);}
     if crate::building::is_sign(b) {return SIGN_ITEM;}
     if is_slab(b) && slab_mat(b)>=4 {return EXTRA_SLAB+slab_mat(b)-4;}
@@ -1339,18 +1471,23 @@ pub fn item_of(b: Block) -> Item {
         JUNGLE_LEAVES | ACACIA_LEAVES => LEAVES,
         SNOWY_LEAVES => PINE_LEAVES,
         FERN | DRY_TUFT => TALL_GRASS,
-        REEDS => FIBER,
+        REEDS => REED_ITEM,
         b => b,
     }
 }
 
 /// Pickaxe tier a block needs before it drops anything.
 pub fn tier_needed(b: Block) -> u8 {
+    if let Some(d) = crate::catalogue::def(b) {
+        return d.tier;
+    }
     match b {
         IRON_ORE => 2,
         CRYSTAL_ORE | GOLD_ORE => 3,
         // (gates are built of something only the best pick cuts)
         CINDERSTONE | PYRE_ORE => 4,
+        // (as in Minecraft, stone and the like give nothing to a bare hand)
+        b if crate::blockinfo::needs_pick(b) => 1,
         _ => 0,
     }
 }
@@ -1366,7 +1503,8 @@ pub fn drop_for(b: Block, tool: Item) -> Item {
         STONE => COBBLE,
         FARMLAND => DIRT,
         b if is_grassy(b) => DIRT,
-        REEDS => FIBER,
+        REEDS => REED_ITEM,
+        CLAY => CLAY_BALL,
         COAL_ORE => COAL,
         EMBER_ORE => EMBER,
         CRYSTAL_ORE => CRYSTAL,
@@ -1390,60 +1528,40 @@ pub fn drop_for(b: Block, tool: Item) -> Item {
     }
 }
 
-/// Seconds of holding the button needed to break `b` with `tool` in hand.
-pub fn break_time(b: Block, tool: Item) -> f32 {
-    if is_plant(b) {return 0.05;}
-    if crate::farming::moisture(b).is_some() {return 0.5;}
-    let with = |kind: Kind, base: f32, gain: f32| match self::tool(tool, kind) {
-        Some(m) => (base * speed(m) * gain).max(0.06),
-        None => base,
-    };
-    match b {
-        CINDERSTONE => with(Kind::Pick, 26.0, 1.0),
-        SLATE => with(Kind::Pick, 3.6, 1.0),
-        FORT_BRICK | FORT_CRACKED => with(Kind::Pick, 3.2, 1.0),
-        PYRE_ORE => with(Kind::Pick, 9.0, 1.0),
-        ASHSTONE | EMBER_MOSS | SMOULDER => with(Kind::Pick, 1.3, 1.0),
-        SCORIA | EMBER_ORE | ASHSTONE_BRICK => with(Kind::Pick, 2.6, 1.0),
-        ASH => with(Kind::Shovel, 0.5, 2.0),
-        CINDERWOOD | CINDER_PLANKS => with(Kind::Axe, 1.1, 2.0),
-        GLOWCAP => 0.4,
-        SUNSHARD => 0.3,
-        STONE | COBBLE | BRICK | STONE_BRICK | SANDSTONE | FURNACE | COAL_ORE | IRON_ORE | CRYSTAL_ORE | GOLD_ORE
-        | MOSSY_COBBLE | IRON_BLOCK | GOLD_BLOCK => {
-            let hard = match b {
-                IRON_ORE | IRON_BLOCK | GOLD_BLOCK => 1.5,
-                CRYSTAL_ORE | GOLD_ORE => 2.2,
-                SANDSTONE => 0.7,
-                _ => 1.0,
-            };
-            with(Kind::Pick, 2.6 * hard, 1.0)
-        }
-        LOG | PLANKS | WORKBENCH | BIRCH_LOG | BIRCH_PLANKS => with(Kind::Axe, 1.1, 2.0),
-        b if is_door(b) || is_trapdoor(b) || crate::building::is_chest(b) => with(Kind::Axe, 1.5, 2.0),
-        b if crate::building::is_bed(b) => with(Kind::Axe, 0.2, 2.0),
-        b if is_slab(b) || is_stairs(b) => {
-            let mat = if is_slab(b) { slab_mat(b) } else { stair_mat(b) };
-            if mat < 2 { with(Kind::Axe, 1.1, 2.0) } else { with(Kind::Pick, 2.6, 1.0) }
-        }
-        FENCE | BIRCH_FENCE => with(Kind::Axe, 1.1, 2.0),
-        b if is_ladder(b) => 0.3,
-        DIRT | SAND | GRAVEL | CLAY | SNOW | FARMLAND | RED_SAND => with(Kind::Shovel, 0.5, 2.0),
-        b if is_grassy(b) => with(Kind::Shovel, 0.5, 2.0),
-        TERRACOTTA | TERRACOTTA_PALE | TERRACOTTA_DARK => with(Kind::Pick, 1.6, 1.0),
-        ICE => with(Kind::Pick, 0.6, 1.0),
-        b if is_leaves(b) || is_wool(b) || b == THATCH => {
-            if tool == SHEARS {
-                0.04
-            } else {
-                0.18
-            }
-        }
-        GLASS | LAMP | PANE => 0.15,
-        b if is_torch(b) => 0.05,
-        b if is_plant(b) => 0.05,
-        _ => 0.3,
+/// Minecraft's tool speeds: how many times faster than a bare hand.
+fn speed(m: Mat) -> f32 {
+    match m {
+        Mat::Wood => 2.0,
+        Mat::Stone => 4.0,
+        Mat::Iron => 6.0,
+        Mat::Crystal => 8.0,
+        Mat::Pyre => 9.0,
+        Mat::Gold => 12.0,
+        Mat::Leather => 1.0,
     }
+}
+
+/// Seconds of holding the button needed to break `b` with `tool` in hand, by
+/// Minecraft's rule: hardness x 1.5 when the block can be harvested (x 5 when it
+/// cannot), divided by the speed of the right tool.
+pub fn break_time(b: Block, tool: Item) -> f32 {
+    let props = crate::blockinfo::props(b);
+    if !props.hardness.is_finite() {
+        return f32::INFINITY;
+    }
+    if props.hardness <= 0.0 {
+        return 0.05;
+    }
+    let mut fast = props.tool.and_then(|kind| self::tool(tool, kind)).map_or(1.0, speed);
+    if tool == SHEARS {
+        if is_leaves(b) {
+            fast = 15.0;
+        } else if is_wool(b) || b == CLOTH {
+            fast = 5.0;
+        }
+    }
+    let harvest = pick_tier(tool) >= tier_needed(b);
+    (props.hardness * if harvest { 1.5 } else { 5.0 } / fast).max(0.05)
 }
 
 /// (damage, reach) of a melee hit with `tool` in hand.
@@ -1659,7 +1777,7 @@ mod tests {
     #[test]
     fn shaped_blocks_drop_their_items() {
         for (b, item) in [(SLAB_TOP + 2, SLAB + 2), (STAIR_BASE + 8 + 5, STAIRS + 1), (LADDER_BASE + 3, LADDER), (TRAP_BASE + 13, TRAPDOOR), (DOOR_BASE + 40, BIRCH_DOOR), (CHEST, CHEST)] {
-            assert_eq!(drop_for(b, AIR), item);
+            assert_eq!(drop_for(b, WOOD_PICK), item);
             assert!(valid(item) && name(item) != "?" && !desc(item).is_empty());
         }
     }

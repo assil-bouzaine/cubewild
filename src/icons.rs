@@ -117,6 +117,41 @@ pub fn pixel(k: usize, x: i32, y: i32) -> [u8; 4] {
         }
         // snowball
         8 => ball(x, y, 8.0, 8.5, 5.5, [240.0, 246.0, 252.0]).map(|c| if n > 0.85 { [c[0] - 18, c[1] - 12, c[2], 255] } else { c }).unwrap_or(CLEAR),
+        // paper: a sheet with a turned corner and faint lines
+        9 => match (x, y) {
+            (3..=12, 2..=13) if x - 3 + 13 - y < 3 => shade([200.0, 200.0, 190.0], 1.0),
+            (3..=12, 2..=13) if y % 3 == 0 && (5..=10).contains(&x) => shade([190.0, 196.0, 206.0], 1.0),
+            (3..=12, 2..=13) => shade([244.0, 242.0, 230.0], 0.96 + n * 0.04),
+            _ => CLEAR,
+        },
+        // book: a leather cover and the page edges
+        10 => match (x, y) {
+            (3..=12, 2..=13) if x >= 11 => shade([238.0, 234.0, 214.0], if y % 2 == 0 { 0.9 } else { 1.0 }),
+            (3..=12, 2..=13) if x == 3 || y == 2 || y == 13 => shade([90.0, 50.0, 30.0], 1.0),
+            (3..=12, 2..=13) if (5..=8).contains(&x) && (5..=6).contains(&y) => shade([220.0, 190.0, 80.0], 1.0),
+            (3..=12, 2..=13) => shade([130.0, 74.0, 42.0], 0.92 + n * 0.1),
+            _ => CLEAR,
+        },
+        // clay ball
+        11 => ball(x, y, 8.0, 8.5, 5.0, [160.0, 166.0, 180.0]).unwrap_or(CLEAR),
+        // brick: a fired block seen at an angle
+        12 => match (x, y) {
+            (2..=13, 6..=11) if y == 6 => shade([200.0, 110.0, 80.0], 1.0),
+            (2..=13, 6..=11) if x == 13 || y == 11 => shade([120.0, 50.0, 36.0], 1.0),
+            (2..=13, 6..=11) => shade([168.0, 78.0, 56.0], 0.92 + n * 0.1),
+            _ => CLEAR,
+        },
+        // reeds: three jointed green stalks
+        13 => {
+            let stalk = matches!(x, 4 | 5 | 8 | 9 | 12) && y >= 1 + (x % 3);
+            if !stalk {
+                CLEAR
+            } else if y % 5 == 0 {
+                shade([150.0, 190.0, 90.0], 1.0)
+            } else {
+                shade([110.0, 170.0, 70.0], if x % 2 == 1 { 0.85 } else { 1.0 })
+            }
+        }
         _ => CLEAR,
     }
 }
@@ -125,7 +160,7 @@ pub fn pixel(k: usize, x: i32, y: i32) -> [u8; 4] {
 mod tests {
     #[test]
     fn every_new_item_has_a_visible_icon_inside_its_layer() {
-        for k in 0..(crate::items::ITEM_END - crate::items::BOWL) as usize {
+        for k in 0..(crate::items::PLAIN_END - crate::items::BOWL) as usize {
             assert!(k < crate::textures::MORE_ICON_COUNT);
             let mut shown = 0;
             for y in 0..16 {

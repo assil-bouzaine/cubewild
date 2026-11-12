@@ -74,7 +74,7 @@ to see the rest.
 | --- | --- |
 | WASD / Space / Ctrl / Shift | move / jump / sprint / sneak (animals notice you later) |
 | Hold left click | break block, or hit an animal in reach |
-| Right click | place the selected block, eat the held food, open or close a door or trapdoor, open a chest, sleep in a bed, open a workbench or furnace |
+| Right click | place the selected block, eat the held food, open or close a door or trapdoor, open a chest, sleep in a bed, open a crafting table, furnace, smoker or blast furnace |
 | Q | drop one of the held item (Ctrl+Q drops the whole stack) |
 | Middle click / P | select the block you look at; acquire it in creative |
 | 1-9, mouse wheel | choose hotbar slot |
@@ -102,13 +102,57 @@ The recipe book on the left has tabs (Tools, Weapons, Armour, Utility, Building,
 Materials, Food) and a "Can craft" filter; pick a recipe, then click the result slot to
 take it (Shift+click crafts as many as you can). Hover anything for its details.
 The **Grid** button switches to manual shaped crafting: 2×2 in the inventory, or 3×3
-near a workbench. Recipes can be offset or mirrored. The recipe book remains available.
+near a crafting table. Recipes can be offset or mirrored. The recipe book remains available.
 Closing the window returns grid ingredients to the bag, with excess dropped beside you;
 an interrupted session also preserves the grid itself.
 
-Recipes are in `src/items.rs`. Basic tools and torches can be made anywhere; a **workbench**
+Recipes are in `src/items.rs`. Basic tools and torches can be made anywhere; a **crafting table**
 unlocks the furnace, bed, iron tools, crystal pickaxe and crystal lamp, and a **furnace**
 (stand within a few steps of either) smelts iron ore, cooks meat, and burns logs into coal.
+
+**Breaking blocks** follows Minecraft's rules. Every block has its Minecraft hardness:
+breaking takes hardness × 1.5 seconds by hand, divided by the right tool's speed (wood 2,
+stone 4, iron 6, crystal 8, pyre 9, gold 12). Stone, ores, bricks and other blocks that
+want a pickaxe take hardness × 5 seconds without one and drop nothing, so make a wooden
+pickaxe first. Hover any block in the inventory to see its **hardness, blast
+resistance, tool, burn time and stack size**, as Minecraft's block pages list them.
+Explosions respect blast resistance: cinderstone and anvils shrug them off.
+
+**Crafting stations**, from Minecraft's list:
+
+- **Crafting table** (the old workbench): the 3 × 3 grid and most recipes.
+- **Furnace**, **Smoker** (furnace + four logs) and **Blast Furnace** (five iron, a
+  furnace and three smooth stone). The smoker cooks only food and the blast furnace only
+  ore and old metal gear, each twice as fast (fuel burns twice as fast too).
+- **Smithing Table** (two iron over four planks): pyre upgrades of crystal gear are made
+  here now, through the recipe book.
+- **Stonecutter** (an iron ingot over three stone): turns one stone, cobblestone, brick,
+  sandstone or slate block into stairs, two slabs, bricks, tiles or carved blocks, with
+  Minecraft's yields. Pick its recipes in the recipe book while standing near it.
+- **Grindstone** (sticks, a cobblestone slab, planks): strips the held gear's
+  enchantments and gives back half the levels they cost.
+- **Anvil**: as in Minecraft, each repair has a 12% chance to wear it, from anvil to
+  **Chipped** to **Damaged**, and then it breaks.
+- **Enchanting table**: now a book, two crystals and four cinderstone (Minecraft's book,
+  diamonds and obsidian).
+- **Fletching Table**, **Cartography Table** and **Loom** can be crafted and placed, but
+  do nothing yet: Cubewild has no banners or maps, and Minecraft's fletching table only
+  serves villagers.
+
+**New blocks** (recipes as in Minecraft): blocks of coal (burns 800 s), crystal, gem and
+pyre; hay bale (takes 80% off a fall); bone block; bookshelf (breaks into three books);
+smooth stone; cracked, chiseled and mossy stone bricks; cut, chiseled and smooth
+sandstone; red sandstone and its cut, chiseled and smooth forms; packed and blue ice;
+polished slate, slate bricks, tiles, chiseled and cracked slate; sixteen colours of
+terracotta (eight terracotta round a dye); and the **lantern** (eight iron nuggets round
+a torch), a full-strength light that stands on a block (Minecraft's also hangs).
+
+**Changed to Minecraft's recipes**: iron and gold blocks take nine ingots (and give
+them back); stone bricks are made from stone; four sand make one sandstone; one
+cobblestone and a plant fibre make mossy cobblestone. **Clay** breaks into four clay
+balls, which fire into bricks; four bricks make a block of bricks, and a block of clay
+fires into terracotta. **Reeds** now drop themselves and can be planted on sand, dirt or
+grass beside water; three make paper, and three paper and a hide make a book.
 
 - **Ores** sit in underground stone: coal anywhere, iron below y 124 (needs a stone
   pickaxe), gold below y 98, crystal below y 86 (needs an iron pickaxe). The pockets
@@ -138,13 +182,13 @@ unlocks the furnace, bed, iron tools, crystal pickaxe and crystal lamp, and a **
 - **Armour**: leather, gold, iron and crystal pieces each absorb a share of the damage from
   attacks; a full crystal set absorbs 64%. Armour wears when it absorbs attacks. Falling,
   drowning, hunger and lava follow their own damage rules.
-- **Doors and windows**: at a workbench, six planks make three doors (oak or birch) and
+- **Doors and windows**: at a crafting table, six planks make three doors (oak or birch) and
   six glass make sixteen window panes. A door stands two blocks tall on the edge of its
   block nearest to you; right click opens and closes it (sneak to place a block against
   it instead), and two doors side by side hinge on opposite sides. Panes are thin and
   join up with the walls and panes beside them. Monsters cannot open doors or see
   through closed ones, and arrows stop at doors and panes.
-- **Stairs, slabs, fences**: at a workbench, six planks, cobblestones or stone bricks make
+- **Stairs, slabs, fences**: at a crafting table, six planks, cobblestones or stone bricks make
   four stairs, three make six slabs, and four planks with two sticks make three fences.
   You walk up stairs and slabs without jumping, and stairs set crosswise to each other
   turn the corner. Point at the upper half of a block's side
@@ -164,7 +208,7 @@ unlocks the furnace, bed, iron tools, crystal pickaxe and crystal lamp, and a **
   Leave room above the lid. Breaking a half spills only that half's contents, and the
   other half becomes a single chest again. Chests from older worlds face south and keep
   their old pairs; they settle into the new form the first time they are opened.
-- **Beds**: three white (or red) wool over three planks, at a workbench, make a bed (the
+- **Beds**: three white (or red) wool over three planks, at a crafting table, make a bed (the
   old three planks and three hides still work). A bed is two blocks long and 9/16 of a
   block high, as in Minecraft: the foot goes where you aim and the head one block further
   in the direction you look, so both cells need room and a floor. Breaking either half
@@ -184,14 +228,14 @@ unlocks the furnace, bed, iron tools, crystal pickaxe and crystal lamp, and a **
   hundred, as in Minecraft). Eight gold ingots round an apple make a **golden apple**,
   which can be eaten even when full and restores two hearts at once (Minecraft gives the
   same healing over a few seconds). Eight gold nuggets round a carrot make a **golden
-  carrot**. **Forest stew** is now made at a workbench in a **bowl** (three planks make
+  carrot**. **Forest stew** is now made at a crafting table in a **bowl** (three planks make
   four), and you keep the bowl. Zombies drop **rotten flesh**: it feeds you, but four
   times in five it leaves you queasy and costs a point of hunger back (Minecraft's Hunger
   effect, in short). A bone grinds into three **bone meal**: right click a crop to ripen
   it a stage or two, a sapling for a 45% chance to grow its tree at once, or grass to
   sprout tufts and flowers around. Bone meal also makes white dye.
 - **Nuggets and snow**: an iron or gold ingot breaks into nine nuggets, and nine make an
-  ingot again at a workbench. Old iron and gold tools and armour melt down in a furnace
+  ingot again at a crafting table. Old iron and gold tools and armour melt down in a furnace
   into a nugget. Snow dug with a shovel gives four **snowballs** (with anything else it
   gives nothing); four snowballs pack back into snow. Right click to throw one: it knocks
   creatures back but does no harm. Snowballs stack to 16.
@@ -220,12 +264,12 @@ unlocks the furnace, bed, iron tools, crystal pickaxe and crystal lamp, and a **
 
 ## Repairing and enchanting
 
-Craft an **anvil** from three iron blocks and four ingots at a workbench. Stand nearby,
+Craft an **anvil** from three iron blocks and four ingots at a crafting table. Stand nearby,
 open the inventory and choose **Equipment**, then pick damaged gear onto the cursor.
 Each repair costs one level and one matching material and restores a quarter of maximum
 durability. Right clicking the anvil opens this panel directly.
 
-An **enchanting table** costs four slate, two crystals and three plant fibre. Its Equipment
+An **enchanting table** costs a book, two crystals and four cinderstone. Its Equipment
 panel offers **Efficiency** for mining tools, **Unbreaking** for durable equipment and
 **Protection** for armour. Each goes up to level III and costs a crystal plus 3, 6 or 9
 experience levels. Repairs and pyre upgrades preserve enchantments. These are deliberately
@@ -311,6 +355,9 @@ conditions, measurements and HDD autosave verification.
 - `CUBEWILD_TEST_HOUSE=in|out`, `CUBEWILD_TEST_MOBS=1` — build a hut with doors, windows
   and one of each shaped block (`CUBEWILD_SCREEN=chest` opens its chest)
   around the player (start inside or outside it) / line up one of each monster nearby.
+  `CUBEWILD_TEST_BLOCKS=1` (with the hut) lays out every catalogue block on a floor south
+  of it and puts you on a pillar above them; `CUBEWILD_NO_PAUSE=1` keeps the game running
+  when its window loses focus.
   These change the world: use them with a spare `CUBEWILD_SEED`
 
 ## Checking world generation

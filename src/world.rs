@@ -309,6 +309,7 @@ pub fn is_door(b: Block) -> bool {
 pub fn is_shaped(b: Block) -> bool {
     (PANE..=CHEST).contains(&b) || (SLAB_TOP..=255).contains(&b) || is_slab(b) || is_stairs(b) || crate::building::is_fence_gate(b) || crate::building::is_sign(b)
         || crate::building::is_chest(b) || crate::building::is_bed(b)
+        || b == ANVIL || b == ENCHANTING_TABLE || crate::catalogue::is_shaped(b)
 }
 #[inline]
 pub fn is_slab(b: Block) -> bool {
@@ -414,6 +415,7 @@ pub fn shape_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
     if crate::building::is_sign(b) {return crate::building::sign_boxes(b);}
     if crate::building::is_chest(b) {return crate::building::chest_boxes(b, at, false);}
     if crate::building::is_bed(b) {return crate::building::bed_boxes(b, false);}
+    if let Some(shape) = catalogue_shape(b) {return crate::catalogue::boxes(shape, false);}
     let n = if is_door(b) {
         v[0] = side_box(door_sides(b).0, 0.0, DOOR_THICK);
         1
@@ -502,6 +504,7 @@ fn draw_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
     if crate::building::is_fence_gate(b) {return crate::building::gate_boxes(b,true);}
     if crate::building::is_chest(b) {return crate::building::chest_boxes(b, at, true);}
     if crate::building::is_bed(b) {return crate::building::bed_boxes(b, true);}
+    if let Some(shape) = catalogue_shape(b) {return crate::catalogue::boxes(shape, true);}
     if is_fence(b) {
         let mut v = [[0.0f32; 6]; 5];
         v[0] = [0.375, 0.0, 0.375, 0.625, 1.0, 0.625];
@@ -520,6 +523,16 @@ fn draw_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
         (v, 1)
     } else {
         shape_boxes(b, at)
+    }
+}
+
+/// The shape of a shaped catalogue block, and of the anvil and enchanting table.
+fn catalogue_shape(b: Block) -> Option<crate::catalogue::Shape> {
+    use crate::catalogue::Shape;
+    match b {
+        ANVIL => Some(Shape::Anvil),
+        ENCHANTING_TABLE => Some(Shape::Table),
+        _ => crate::catalogue::def(b).map(|d| d.shape).filter(|&s| s != Shape::Full),
     }
 }
 
@@ -565,7 +578,7 @@ pub fn is_target(b: Block) -> bool {
 /// Blocks that light their surroundings.
 #[inline]
 pub fn is_light(b: Block) -> bool {
-    is_torch(b) || b == LAMP || is_gate(b) || b == SUNSHARD || b == GLOWCAP
+    is_torch(b) || b == LAMP || is_gate(b) || b == SUNSHARD || b == GLOWCAP || crate::catalogue::def(b).is_some_and(|d| d.light > 0)
 }
 
 /// Texture layer for a block face (face: 0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z).
@@ -575,6 +588,7 @@ pub fn tex_for(b: Block, face: usize) -> u32 {
     if crate::building::is_sign(b) {return tex_for(PLANKS,face);}
     if crate::building::is_chest(b) {return chest_layer(b, face);}
     if crate::building::is_bed(b) {return bed_layer(b, face);}
+    if crate::catalogue::def(b).is_some() {return crate::catalogue::tex(b, face);}
 
     if let Some(m) = crate::farming::moisture(b) {
         return if face == 2 { if m > 0 { crate::textures::NEW_TEX as u32 + 3 } else { 50 } } else { 2 };
@@ -585,6 +599,7 @@ pub fn tex_for(b: Block, face: usize) -> u32 {
 
     match b {
         ANVIL => crate::textures::NEW_TEX as u32,
+        ENCHANTING_TABLE if face == 2 => FURNITURE + 18,
         ENCHANTING_TABLE => crate::textures::NEW_TEX as u32 + 1,
         GRASS => match face {
             2 => 0,
@@ -787,6 +802,8 @@ fn part_layer(b: Block, k: usize, face: usize) -> u32 {
         CHEST_LATCH_LAYER
     } else if k > 0 && crate::building::is_bed(b) {
         8
+    } else if let Some(layer) = catalogue_shape(b).and_then(|s| crate::catalogue::part_layer(s, k)) {
+        layer
     } else {
         tex_for(b, face)
     }
@@ -2421,18 +2438,19 @@ impl World {
     }
 
     /// True if a block of type `b` is within `r` blocks of `p`.
-    pub fn block_near(&self, p: glam::Vec3, r: i32, b: Block) -> bool {
+    /// The first block within `r` of `p` (a box, one higher above) that `f` accepts.
+    pub fn find_near(&self, p: glam::Vec3, r: i32, f: impl Fn(Block) -> bool) -> Option<glam::IVec3> {
         let c = p.floor().as_ivec3();
         for y in (c.y - r).max(0)..=(c.y + r + 1).min(CH - 1) {
             for z in c.z - r..=c.z + r {
                 for x in c.x - r..=c.x + r {
-                    if self.get_block(x, y, z) == b {
-                        return true;
+                    if f(self.get_block(x, y, z)) {
+                        return Some(glam::IVec3::new(x, y, z));
                     }
                 }
             }
         }
-        false
+        None
     }
 
     /// y of the highest block in a loaded column, ignoring plants and torches.
