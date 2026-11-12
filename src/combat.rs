@@ -501,6 +501,21 @@ impl Game {
                     // (a campfire leaves two coal, as Minecraft's two charcoal; a soul one its ash)
                     b if b == catalogue::block(catalogue::CAMPFIRE) && !creative => self.spill(at, items::COAL, 2),
                     b if b == catalogue::block(catalogue::SOUL_CAMPFIRE) && !creative => self.spill(at, items::DEEP_ITEM + 2, 1),
+                    // (a melon breaks into three to seven slices; mushroom caps into up to two
+                    // mushrooms)
+                    b if b == catalogue::block(catalogue::MELON) && !creative => {
+                        let n = 3 + self.rng.next() % 5;
+                        self.spill(at, items::MELON_SLICE, n)
+                    }
+                    b if b == catalogue::block(catalogue::RED_MUSHROOM_BLOCK) && !creative => {
+                        let n = self.rng.next() % 3;
+                        self.spill(at, MUSHROOM, n)
+                    }
+                    b if b == catalogue::block(catalogue::BROWN_MUSHROOM_BLOCK) && !creative => {
+                        let n = self.rng.next() % 3;
+                        self.spill(at, items::cat(catalogue::BROWN_MUSHROOM), n)
+                    }
+                    b if b == catalogue::block(catalogue::MUSHROOM_STEM) => {}
                     // (a bookshelf breaks into its three books)
                     b if b == crate::catalogue::block(crate::catalogue::BOOKSHELF) && drop != AIR => self.spill(at, items::BOOK, 3),
                     _ => self.spill(at, drop, 1),
@@ -526,6 +541,13 @@ impl Game {
                                 self.world.set_block(o.x, o.y, o.z, alone);
                             }
                         }
+                    }
+                }
+                // a tall flower's other half goes with it
+                if let Some(lower) = catalogue::tall_flower(b) {
+                    let y = if lower { p.y + 1 } else { p.y - 1 };
+                    if catalogue::tall_flower(self.world.get_block(p.x, y, p.z)).is_some() {
+                        self.world.set_block(p.x, y, p.z, AIR);
                     }
                 }
                 if building::is_bed(b) {
@@ -574,6 +596,10 @@ impl Game {
                     && self.world.set_block(p.x, p.y + 1, p.z, AIR)
                 {
                     self.spill(up, items::drop_for(above, tool), 1);
+                    // (and a tall flower's top with it)
+                    if catalogue::tall_flower(above) == Some(true) && catalogue::tall_flower(self.world.get_block(p.x, p.y + 2, p.z)).is_some() {
+                        self.world.set_block(p.x, p.y + 2, p.z, AIR);
+                    }
                     // (a stand of reeds falls whole)
                     let mut y = p.y + 2;
                     while above == REEDS && self.world.get_block(p.x, y, p.z) == REEDS && self.world.set_block(p.x, y, p.z, AIR) {

@@ -9,7 +9,7 @@ use crate::items::{self, Item, ARROW, BERRIES, BONE, COOKED_MEAT, FIBER, HIDE, I
 use crate::path::{settle, walk_line, Body, Finder, Probe};
 use crate::player::{collides, move_step, ray_aabb, raycast_with};
 use crate::village::{self, Village};
-use crate::world::{is_fluid, is_lava, hash2, is_grassy, is_ladder, is_leaves, is_solid, World, AIR, CLAY, CLOTH, COLOURS, MUSHROOM, SEA, SNOW};
+use crate::world::{is_fluid, is_lava, hash2, is_grassy, is_climbable, is_leaves, is_solid, World, AIR, CLAY, CLOTH, COLOURS, MUSHROOM, SEA, SNOW};
 use glam::{IVec3, Mat4, Vec3};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -1203,7 +1203,7 @@ impl Mobs {
                 m.vel.y = (m.vel.y - 29.0 * dt).max(-50.0);
             }
             // on a ladder a mob slides down slowly, and climbs when it walks into the wall
-            let ladder = !in_water && is_ladder(world.get_block(b.x, (m.pos.y + 0.1).floor() as i32, b.z));
+            let ladder = !in_water && is_climbable(world.get_block(b.x, (m.pos.y + 0.1).floor() as i32, b.z));
             if ladder {
                 m.vel.y = m.vel.y.max(-2.6);
             }

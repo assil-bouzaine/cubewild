@@ -337,8 +337,11 @@ enum Tree {
 /// Makes a chunk; `villages` adds those of generator 3 (see `GEN_LATEST`).
 /// `woods`: spruce, jungle and acacia trees have their own logs (generator 4 on;
 /// older worlds keep oak trunks, so their unedited land looks as it always has).
-pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool, woods: bool) -> ChunkData {
-    use crate::catalogue::{block, log_row};
+/// `nature`: more flowers, tall flowers, pumpkins, melons, brown mushrooms, lily pads and
+/// jungle vines (generator 5 on).
+pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool, woods: bool, nature: bool) -> ChunkData {
+    use crate::catalogue::{block, log_row, BROWN_MUSHROOM, FLOWER_ROW, LILY_PAD, MELON, PUMPKIN, TALL_ROW, VINE_ROW};
+    let flower = |k: usize| block(FLOWER_ROW + k);
     let wood_log = |w: usize| if woods { block(log_row(w)) } else { LOG };
     let mut blocks = vec![AIR; VOL].into_boxed_slice();
     // columns of the chunk plus an apron: 3 for the trees that reach across the border,
@@ -628,8 +631,18 @@ pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool, woods: bool) -> Chu
                     }
                 }
                 Tree::Jungle => {
-                    // a giant: a long trunk and a broad rounded crown
+                    // a giant: a long trunk and a broad rounded crown, hung with vines
                     let th = 8 + pick % 7;
+                    if nature {
+                        for dy in 3..th - 2 {
+                            for (s, &(dx, dz)) in SIDE_DIR.iter().enumerate() {
+                                if hash2(seed ^ 0x51ae, wx + dx * 3 + dy * 17, wz + dz * 5) % 5 < 2 {
+                                    // (the vine's support, the trunk, is on its far side)
+                                    put(tx + dx, h + dy, tz + dz, block(VINE_ROW + (s ^ 1)), false);
+                                }
+                            }
+                        }
+                    }
                     for (dy, lim) in [(-2, 5), (-1, 10), (0, 10), (1, 5), (2, 1)] {
                         for dz in -3i32..=3 {
                             for dx in -3i32..=3 {
@@ -699,6 +712,11 @@ pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool, woods: bool) -> Chu
                     continue;
                 }
             }
+            // lily pads on the still water of swamps
+            if nature && c.biome == Biome::Swamp && h < GSEA && !frozen(x, z) && roll < 70 && blocks[bidx(x, GSEA, z)] == WATER {
+                blocks[bidx(x, GSEA + 1, z)] = block(LILY_PAD);
+                continue;
+            }
             if h <= GSEA + 1 && c.biome != Biome::Swamp {
                 continue;
             }
@@ -731,6 +749,39 @@ pub fn generate(seed: u32, cx: i32, cz: i32, villages: bool, woods: bool) -> Chu
                         } else {
                             FLOWER_BLUE
                         };
+                        if nature && patch >= 0.0 {
+                            // each biome its own flowers, as in Minecraft
+                            let list: &[Block] = match c.biome {
+                                Biome::Plains => &[FLOWER_RED, flower(2), flower(7), flower(3), flower(4), flower(5), flower(6)],
+                                Biome::Meadow => &[FLOWER_RED, flower(1), flower(2), flower(7), FLOWER_BLUE],
+                                _ => &[FLOWER_RED, flower(8)],
+                            };
+                            let at = (((kind + 1.0) * 0.5 * list.len() as f32) as usize).min(list.len() - 1);
+                            plant = list[at];
+                            // now and then a tall one: sunflowers on the plains, lilacs,
+                            // roses and peonies in the woods and meadows
+                            if (r >> 20) % 12 == 0 && h + 2 < GH && blocks[bidx(x, h + 2, z)] == AIR {
+                                let tall = if c.biome == Biome::Plains { 0 } else { 1 + ((r >> 26) % 3) as usize };
+                                blocks[bidx(x, h + 1, z)] = block(TALL_ROW + 2 * tall);
+                                blocks[bidx(x, h + 2, z)] = block(TALL_ROW + 2 * tall + 1);
+                                continue;
+                            }
+                        }
+                    }
+                }
+                if nature {
+                    let rare = hash2(seed ^ 0x9a7c, wx, wz) % 1000;
+                    if plant == MUSHROOM && rare % 2 == 0 {
+                        plant = block(BROWN_MUSHROOM);
+                    }
+                    if plant == FLOWER_BLUE && c.biome == Biome::Swamp {
+                        plant = flower(0);
+                    }
+                    // pumpkins in the open country, melons in the jungle
+                    if matches!(c.biome, Biome::Plains | Biome::Meadow | Biome::Taiga | Biome::Forest) && rare < 2 {
+                        plant = block(PUMPKIN);
+                    } else if c.biome == Biome::Jungle && rare < 6 {
+                        plant = block(MELON);
                     }
                 }
             } else if ground == SAND && c.biome == Biome::Desert {
@@ -815,11 +866,11 @@ mod tests {
             for k in 0..40 {
                 let r = hash2(seed, k, 3);
                 let (cx, cz) = ((r % 256) as i32 - 128, ((r >> 8) % 256) as i32 - 128);
-                let ch = generate(seed, cx, cz, true, true);
+                let ch = generate(seed, cx, cz, true, true, true);
                 // (a village may hold water above the sea: its well, the ditches of its fields)
                 let village = !crate::village::near(seed, cx * CW, cz * CW, cx * CW + 15, cz * CW + 15, crate::village::REACH).is_empty();
                 if k == 0 {
-                    assert!(ch.blocks == generate(seed, cx, cz, true, true).blocks);
+                    assert!(ch.blocks == generate(seed, cx, cz, true, true, true).blocks);
                 }
                 for z in 0..CW {
                     for x in 0..CW {
@@ -828,7 +879,8 @@ mod tests {
                         for y in 1..GH - 1 {
                             let (b, under) = (ch.get(x, y, z), ch.get(x, y - 1, z));
                             if is_plant(b) || b == CACTUS {
-                                assert!(is_opaque(under) || under == CACTUS || (b == REEDS && under == REEDS), "seed {seed}: block {b} on {under} at {x} {y} {z} in {cx} {cz}");
+                                let tall_top = crate::catalogue::tall_flower(b) == Some(false) && crate::catalogue::tall_flower(under) == Some(true);
+                                assert!(is_opaque(under) || under == CACTUS || (b == REEDS && under == REEDS) || tall_top, "seed {seed}: block {b} on {under} at {x} {y} {z} in {cx} {cz}");
                             }
                             if b == WATER || b == ICE {
                                 assert!(under != AIR && (y <= GSEA || b == ICE || village), "seed {seed}: water at {x} {y} {z}");
@@ -891,7 +943,7 @@ mod tests {
         let mut air = 0usize;
         for cz in 0..8 {
             for cx in 0..8 {
-                air += generate(2026, cx * 9, cz * 9, true, true).blocks.iter().filter(|b| **b == AIR).count();
+                air += generate(2026, cx * 9, cz * 9, true, true, true).blocks.iter().filter(|b| **b == AIR).count();
             }
         }
         println!("generate v2: {:.2} ms a chunk ({air})", t.elapsed().as_secs_f64() * 1000.0 / 64.0);
@@ -981,7 +1033,7 @@ mod wood_tests {
     fn new_woods_only_change_trunks() {
         let mut changed = 0;
         for (cx, cz) in [(0, 0), (40, -12), (-75, 30), (120, 120), (-300, -40), (9, 210), (260, -180)] {
-            let (old, new) = (generate(4242, cx, cz, true, false), generate(4242, cx, cz, true, true));
+            let (old, new) = (generate(4242, cx, cz, true, false, false), generate(4242, cx, cz, true, true, false));
             for (&a, &b) in old.blocks.iter().zip(new.blocks.iter()) {
                 if a != b {
                     assert!(a == LOG && crate::catalogue::is_wood_log(b), "{a} became {b}");
@@ -990,6 +1042,27 @@ mod wood_tests {
             }
         }
         assert!(changed > 0, "some spruce, jungle or acacia trees in the sample");
+    }
+    /// Generator 5 adds nature's new blocks (and only adds: what it changes was a plant,
+    /// grass, air or water before).
+    #[test]
+    fn nature_adds_flowers_pumpkins_and_lily_pads() {
+        let mut new_kinds = std::collections::HashSet::new();
+        for cx in -12..12 {
+            for cz in -12..12 {
+                let (old, new) = (generate(4242, cx * 7, cz * 7, true, true, false), generate(4242, cx * 7, cz * 7, true, true, true));
+                for (&a, &b) in old.blocks.iter().zip(new.blocks.iter()) {
+                    if a != b {
+                        // (a jungle tree's vines may take a cell another tree's leaves had)
+                        assert!(a == AIR || is_plant(a) || a == WATER || (is_leaves(a) && crate::catalogue::is_vine(b)), "{a} became {b}");
+                        if crate::catalogue::def(b).is_some() {
+                            new_kinds.insert(b);
+                        }
+                    }
+                }
+            }
+        }
+        assert!(new_kinds.len() >= 6, "{} new kinds", new_kinds.len());
     }
 }
 

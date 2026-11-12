@@ -147,6 +147,11 @@ pub const WOOD_ITEM: Item = 261;
 pub const BIRCH_TRAPDOOR: Item = 279;
 pub const BIRCH_SIGN: Item = 280;
 pub const WOOD_ITEM_END: Item = 281;
+/// nature's plain items: icons `textures::MORE_ICONS` + 14..
+pub const PUMPKIN_SEEDS: Item = 281;
+pub const MELON_SEEDS: Item = 282;
+pub const MELON_SLICE: Item = 283;
+pub const NATURE_ITEM_END: Item = 284;
 
 /// The wooden pieces made from each wood's planks.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -292,6 +297,7 @@ pub fn valid(i: Item) -> bool {
         || (64..PLAIN_END).contains(&i)
         || (MORE_SLAB_ITEM..MORE_SHAPES_END).contains(&i)
         || (WOOD_ITEM..WOOD_ITEM_END).contains(&i)
+        || (PUMPKIN_SEEDS..NATURE_ITEM_END).contains(&i)
         || crate::catalogue::row_of_item(i).is_some_and(crate::catalogue::has_item)
 }
 
@@ -309,6 +315,10 @@ pub fn name(i: Item) -> &'static str {
         return MORE_STAIR_NAMES[(i - MORE_STAIRS_ITEM) as usize];
     }
     match i {
+        PUMPKIN_SEEDS => "Pumpkin Seeds",
+        MELON_SEEDS => "Melon Seeds",
+        MELON_SLICE => "Melon Slice",
+        MUSHROOM => "Red Mushroom",
         PAPER => "Paper",
         BOOK => "Book",
         CLAY_BALL => "Clay Ball",
@@ -370,7 +380,6 @@ pub fn name(i: Item) -> &'static str {
         TALL_GRASS => "Short Grass",
         FLOWER_RED => "Poppy",
         FLOWER_YELLOW => "Dandelion",
-        MUSHROOM => "Mushroom",
         BERRY_BUSH => "Berry Bush",
         DEAD_BUSH => "Dead Bush",
         BIRCH_PLANKS => "Birch Planks",
@@ -536,6 +545,7 @@ pub fn name(i: Item) -> &'static str {
 /// Texture-array layer used as the item's icon.
 pub fn icon(i: Item) -> u32 {
     if crate::catalogue::row_of_item(i).is_some() { return crate::catalogue::icon(i); }
+    if (PUMPKIN_SEEDS..NATURE_ITEM_END).contains(&i) { return (crate::textures::MORE_ICONS + 14 + (i - PUMPKIN_SEEDS) as usize) as u32; }
     if let Some((w, p)) = wood_piece(i).filter(|&(w, p)| w >= 2 || (w == 1 && matches!(p, Piece::Trapdoor | Piece::Sign))) {
         return match p {
             Piece::Door => tex_for(crate::building::door_base(w) + DOOR_UPPER, 4),
@@ -710,6 +720,7 @@ pub fn food(i: Item) -> f32 {
         STEW => 9.0,
         APPLE | GOLDEN_APPLE | ROTTEN_FLESH => 4.0,
         GOLDEN_CARROT => 6.0,
+        MELON_SLICE => 2.0,
         _ => 0.0,
     }
 }
@@ -799,6 +810,8 @@ pub fn desc(i: Item) -> &'static str {
         return "Walk up without jumping. Place high for upside down.";
     }
     match i {
+        PUMPKIN_SEEDS | MELON_SEEDS => "Plant on farmland. The stem grows its fruit on free ground beside it.",
+        MELON_SLICE => "A juicy snack. Nine make a melon; one makes a seed.",
         PAPER => "Three reeds make three sheets. For books and maps.",
         BOOK => "Three paper and a hide. For bookshelves and enchanting tables.",
         CLAY_BALL => "Smelt it into a brick. Four make a block of clay.",
@@ -1371,6 +1384,25 @@ pub const RECIPES: &[Recipe] = &[
     r(Cat::Building, (WOOD_ITEM + 12 + 5, 3), &[(cat(c::planks_row(2)), 6), (STICK, 1)], WORKBENCH),
     r(Cat::Building, (BIRCH_TRAPDOOR, 2), &[(BIRCH_PLANKS, 6)], WORKBENCH),
     r(Cat::Building, (BIRCH_SIGN, 3), &[(BIRCH_PLANKS, 6), (STICK, 1)], WORKBENCH),
+    // ---- phase 5: nature
+    r(Cat::Materials, (DYE + 3, 1), &[(cat(c::FLOWER_ROW + 0), 1)], AIR),
+    r(Cat::Materials, (DYE + 2, 1), &[(cat(c::FLOWER_ROW + 1), 1)], AIR),
+    r(Cat::Materials, (DYE + 8, 1), &[(cat(c::FLOWER_ROW + 2), 1)], AIR),
+    r(Cat::Materials, (DYE + 14, 1), &[(cat(c::FLOWER_ROW + 3), 1)], AIR),
+    r(Cat::Materials, (DYE + 1, 1), &[(cat(c::FLOWER_ROW + 4), 1)], AIR),
+    r(Cat::Materials, (DYE + 8, 1), &[(cat(c::FLOWER_ROW + 5), 1)], AIR),
+    r(Cat::Materials, (DYE + 6, 1), &[(cat(c::FLOWER_ROW + 6), 1)], AIR),
+    r(Cat::Materials, (DYE + 8, 1), &[(cat(c::FLOWER_ROW + 7), 1)], AIR),
+    r(Cat::Materials, (DYE + 0, 1), &[(cat(c::FLOWER_ROW + 8), 1)], AIR),
+    r(Cat::Materials, (DYE + 4, 2), &[(cat(c::TALL_ROW + 0), 1)], AIR),
+    r(Cat::Materials, (DYE + 2, 2), &[(cat(c::TALL_ROW + 2), 1)], AIR),
+    r(Cat::Materials, (DYE + 14, 2), &[(cat(c::TALL_ROW + 4), 1)], AIR),
+    r(Cat::Materials, (DYE + 6, 2), &[(cat(c::TALL_ROW + 6), 1)], AIR),
+    r(Cat::Materials, (PUMPKIN_SEEDS, 4), &[(cat(c::PUMPKIN), 1)], AIR),
+    r(Cat::Materials, (MELON_SEEDS, 1), &[(MELON_SLICE, 1)], AIR),
+    r(Cat::Building, (cat(c::MELON), 1), &[(MELON_SLICE, 9)], WORKBENCH),
+    r(Cat::Utility, (cat(c::JACK_O_LANTERN), 1), &[(cat(c::CARVED_PUMPKIN), 1), (TORCH, 1)], AIR),
+    r(Cat::Food, (STEW, 1), &[(MUSHROOM, 1), (cat(c::BROWN_MUSHROOM), 1), (BOWL, 1)], AIR),
 ];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -1754,6 +1786,10 @@ pub fn door_item(b: Block) -> Item {
 
 /// The item a block in the world stands for (middle click, and what it drops).
 pub fn item_of(b: Block) -> Item {
+    // (pumpkin and melon stems stand for their seeds)
+    if let Some((item, _)) = crate::farming::harvest(b).filter(|_| crate::catalogue::def(b).is_some()) {
+        return item;
+    }
     if let Some(i) = crate::catalogue::item_of_block(b) {
         return i;
     }
@@ -1827,6 +1863,8 @@ pub fn drop_for(b: Block, tool: Item) -> Item {
         CRYSTAL_ORE => CRYSTAL,
         BERRY_BUSH => BERRIES,
         DEAD_BUSH => STICK,
+        // vines only come away whole with shears
+        b if crate::catalogue::is_vine(b) && tool != SHEARS => AIR,
         // snow packs back into snowballs, but only a shovel gathers them
         SNOW if matches!(gear(tool), Some((Kind::Shovel, _))) => SNOWBALL,
         SNOW => AIR,

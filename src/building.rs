@@ -910,6 +910,34 @@ impl Game {
                 self.throw_snowball();
                 return;
             }
+            // shears carve a face in a pumpkin, towards you, and four seeds fall out
+            items::SHEARS if target.is_some_and(|(p, _, _)| self.world.get_block(p.x, p.y, p.z) == catalogue::block(catalogue::PUMPKIN)) => {
+                let (p, _, _) = target.unwrap();
+                let d = self.player.look_dir();
+                let towards: Block = if d.x.abs() > d.z.abs() { (d.x < 0.0) as Block } else { 2 + (d.z < 0.0) as Block };
+                if self.world.set_block(p.x, p.y, p.z, catalogue::block(catalogue::CARVED_PUMPKIN + towards as usize)) {
+                    self.spill(p.as_vec3() + Vec3::new(0.5, 1.1, 0.5), items::PUMPKIN_SEEDS, 4);
+                    self.wear_held();
+                    self.place_cd = 0.25;
+                }
+                return;
+            }
+            // a lily pad goes on still water
+            i if i == items::cat(catalogue::LILY_PAD) => {
+                if let Some(w) = self.water_target(6.0) {
+                    let mut y = w.y;
+                    while self.world.get_block(w.x, y + 1, w.z) == WATER {
+                        y += 1;
+                    }
+                    if self.world.get_block(w.x, y, w.z) == WATER && self.world.get_block(w.x, y + 1, w.z) == AIR && self.world.set_block(w.x, y + 1, w.z, catalogue::block(catalogue::LILY_PAD)) {
+                        self.spend();
+                        self.place_cd = 0.25;
+                    }
+                } else {
+                    self.say("A lily pad floats on still water".into());
+                }
+                return;
+            }
             items::BONE_MEAL => {
                 if let Some((p, _, _)) = target {
                     if self.bone_meal(p) {
@@ -993,6 +1021,40 @@ impl Game {
                     return;
                 }
                 (q, catalogue::block(catalogue::HANGING_LANTERN))
+            }
+            // carved pumpkins and jack o'lanterns face you
+            i if i == items::cat(catalogue::CARVED_PUMPKIN) || i == items::cat(catalogue::JACK_O_LANTERN) => {
+                let row = catalogue::row_of_item(i).unwrap();
+                (q, catalogue::block(row + (facing ^ 1) as usize))
+            }
+            // vines hang on the side of a solid block
+            i if i == items::cat(catalogue::VINE_ROW) => {
+                if n.y != 0 || !is_opaque(clicked) {
+                    self.say("Vines hang on the side of a solid block".into());
+                    return;
+                }
+                (q, catalogue::block(catalogue::VINE_ROW + wall as usize))
+            }
+            // flowers grow on grass and dirt, a brown mushroom on any solid block; a tall
+            // flower takes two cells
+            i if catalogue::row_of_item(i).is_some_and(|r| catalogue::DEFS[r].shape == catalogue::Shape::Plant) => {
+                let b = items::block_of(i);
+                let mushroom = b == catalogue::block(catalogue::BROWN_MUSHROOM);
+                let soil = clicked == DIRT || clicked == FARMLAND || is_grassy(clicked) || (mushroom && is_opaque(clicked));
+                if n.y != 1 || !soil {
+                    self.say(if mushroom { "A mushroom grows on a solid block".into() } else { "A flower grows on grass or dirt".into() });
+                    return;
+                }
+                if catalogue::tall_flower(b) == Some(true) {
+                    if !is_replaceable(self.world.get_block(q.x, q.y + 1, q.z)) || !is_replaceable(self.world.get_block(q.x, q.y, q.z)) {
+                        return;
+                    }
+                    if self.world.set_pair(q.x, q.y, q.z, b, b + 1) {
+                        self.spend();
+                    }
+                    return;
+                }
+                (q, b)
             }
             items::REED_ITEM => {
                 // (Minecraft's sugar cane: on sand, dirt or grass with water beside the
@@ -1089,6 +1151,14 @@ impl Game {
             }
             let grow = (1 + (self.rng.next() % 2) as Block).min(3 - stage as Block);
             self.world.set_block(p.x, p.y, p.z, b + grow)
+        } else if b == MUSHROOM || b == catalogue::block(catalogue::BROWN_MUSHROOM) {
+            // (Minecraft: a 40% chance to grow a huge mushroom, where there is room)
+            if self.rng.f() < 0.4 {
+                if let Some(huge) = settle::huge_mushroom(&self.world, p, b == MUSHROOM, &mut self.rng) {
+                    self.world.set_many(&huge);
+                }
+            }
+            true
         } else if is_sapling(b) {
             // (Minecraft: a 45% chance to advance; its saplings need two advances)
             if self.rng.f() < 0.45 {
@@ -1101,9 +1171,10 @@ impl Game {
             for _ in 0..12 {
                 let c = p + IVec3::new((self.rng.next() % 7) as i32 - 3, 0, (self.rng.next() % 7) as i32 - 3);
                 if is_grassy(self.world.get_block(c.x, c.y, c.z)) && self.world.get_block(c.x, c.y + 1, c.z) == AIR {
-                    let plant = match self.rng.next() % 8 {
+                    let plant = match self.rng.next() % 12 {
                         0 => FLOWER_RED,
                         1 => FLOWER_YELLOW,
+                        2 => catalogue::block(catalogue::FLOWER_ROW + (self.rng.next() % 9) as usize),
                         _ => TALL_GRASS,
                     };
                     self.world.set_block(c.x, c.y + 1, c.z, plant);

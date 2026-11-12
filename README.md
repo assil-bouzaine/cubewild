@@ -186,6 +186,24 @@ planks make sticks, crafting tables, chests, bowls, beds, boats, wooden tools, s
 bookshelves and the wooden workstations, and any log makes a smoker or a campfire. A
 door is two planks wide and three high in the grid.
 
+**Nature**: new worlds grow more flowers, each biome its own as in Minecraft: blue
+orchids in swamps; azure bluets, oxeye daisies and four tulips on the plains; alliums in
+meadows; lilies of the valley in woods; and two-block **sunflowers**, **lilacs**, **rose
+bushes** and **peonies**. Each makes its Minecraft dye (a tall one makes two). Swamps
+float **lily pads** (place one on water from the shore; you can stand on it), jungle
+trunks are hung with **vines** (climb them like ladders; only shears gather them), and
+there are rare **pumpkin** patches in open country and **melons** in the jungle.
+A pumpkin breaks into four **pumpkin seeds**, a **melon** into three to seven **melon
+slices** (food; one makes a seed, nine a melon). Seeds on farmland grow a stem, and a
+ripe stem grows its fruit on free ground beside it. Shears carve a face in a pumpkin
+(and four seeds fall out); a **carved pumpkin** over a torch makes a **jack o'lantern**,
+a bright light. Woods and swamps now also grow **brown mushrooms** (the old mushroom is
+the red one); a red and a brown mushroom with a bowl make stew, and bone meal may grow
+either into a **huge mushroom** of mushroom blocks. Bone meal on grass can sprout the
+new flowers too. Existing worlds keep their land as it was generated; plant and grow the
+new blocks there. (Coral, seagrass and kelp need blocks that stand in water, which comes
+later.)
+
 **Changed to Minecraft's recipes**: iron and gold blocks take nine ingots (and give
 them back); stone bricks are made from stone; four sand make one sandstone; one
 cobblestone and a plant fibre make mossy cobblestone. **Clay** breaks into four clay

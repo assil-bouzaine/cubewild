@@ -1,6 +1,6 @@
 //! Player movement, AABB-vs-voxel physics (shared with animals), and ray casting.
 
-use crate::world::{fluid_height, is_fence, is_lava, is_ladder, is_shaped, is_solid, is_target, is_torch, is_water, Block, World};
+use crate::world::{fluid_height, is_climbable, is_fence, is_lava, is_shaped, is_solid, is_target, is_torch, is_water, Block, World};
 use glam::{IVec3, Vec3};
 
 pub fn collides(world: &World, pos: Vec3, hw: f32, h: f32) -> bool {
@@ -398,7 +398,7 @@ impl Player {
             if inp.jump && self.on_ground {
                 self.vel.y = 8.8;
             }
-            if is_ladder(world.get_block(b.x, (self.pos.y + 0.1).floor() as i32, b.z)) {
+            if is_climbable(world.get_block(b.x, (self.pos.y + 0.1).floor() as i32, b.z)) {
                 // on a ladder: slide down slowly, hold on while sneaking, and climb by
                 // walking into the wall behind it (or jumping)
                 self.vel.y = self.vel.y.max(if inp.sneak { 0.0 } else { -2.6 });

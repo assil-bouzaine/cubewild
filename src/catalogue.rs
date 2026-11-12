@@ -33,6 +33,13 @@ pub enum Shape {
     Campfire,
     /// joins like the oak fence (worked out in `world`)
     Fence,
+    /// crossed planes, walked through (flowers, mushrooms, stems)
+    Plant,
+    /// a pad lying on the water
+    Lily,
+    /// a thin sheet on the side of a block, climbed like a ladder: the row past
+    /// `VINE_ROW` is the side of its cell the supporting block is on
+    Vine,
 }
 
 /// A texture: an existing layer, or one drawn here from a pattern and a colour.
@@ -66,10 +73,13 @@ pub struct Def {
     /// a state of another row's block (a hanging lantern): it has no item of its own and
     /// drops that row's
     pub drop: Option<usize>,
+    /// the side of the cell (see `SIDE_DIR`) the front (fourth texture) faces, for
+    /// blocks that face one way (a carved pumpkin)
+    pub front: Option<u8>,
 }
 
 const fn d(name: &'static str, desc: &'static str, tex: &'static [Pat], hardness: f32, blast: f32, tool: Option<Kind>, tier: u8, cat: Cat) -> Def {
-    Def { name, desc, tex, icon: None, hardness, blast, tool, tier, burn: 0.0, shape: Shape::Full, light: 0, cat, parts: &[], drop: None }
+    Def { name, desc, tex, icon: None, hardness, blast, tool, tier, burn: 0.0, shape: Shape::Full, light: 0, cat, parts: &[], drop: None, front: None }
 }
 const fn burns(mut def: Def, secs: f32) -> Def {
     def.burn = secs;
@@ -78,6 +88,13 @@ const fn burns(mut def: Def, secs: f32) -> Def {
 const fn with_parts(mut def: Def, parts: &'static [Pat]) -> Def {
     def.parts = parts;
     def
+}
+const fn facing(mut def: Def, side: u8) -> Def {
+    def.front = Some(side);
+    def
+}
+const fn plant(name: &'static str, desc: &'static str, tex: &'static [Pat]) -> Def {
+    shaped(d(name, desc, tex, 0.0, 0.0, None, 0, Cat::Building), Shape::Plant, 0, None)
 }
 const fn state_of(mut def: Def, row: usize) -> Def {
     def.drop = Some(row);
@@ -285,6 +302,57 @@ const WOODS: [Def; 9] = [
     shaped(burns(d("Acacia Fence", "Four planks and two sticks make three. Too high to jump.", &[Pat::Draw(planks, [170, 92, 52])], 2.0, 3.0, AXE, 0, B), 15.0), Shape::Fence, 0, Some(Pat::Draw(fence_icon, [170, 92, 52]))),
 ];
 
+/// Phase 5, nature: flowers, tall flowers (lower, then upper half), pumpkins (and their
+/// carved and lit faces, one row per facing), the melon, mushrooms and their blocks, the
+/// lily pad, vines (one row per wall) and the stems of pumpkins and melons (one row per
+/// growth stage).
+const NATURE: [Def; 44] = [
+    plant("Blue Orchid", "A swamp flower. Makes light blue dye.", &[Pat::Draw(flower_star, [60, 150, 230])]),
+    plant("Allium", "A ball of tiny purple flowers. Makes magenta dye.", &[Pat::Draw(flower_ball, [180, 100, 220])]),
+    plant("Azure Bluet", "Small pale flowers of the plains. Makes light gray dye.", &[Pat::Draw(flower_cluster, [230, 234, 240])]),
+    plant("Red Tulip", "Makes red dye.", &[Pat::Draw(flower_cup, [214, 40, 34])]),
+    plant("Orange Tulip", "Makes orange dye.", &[Pat::Draw(flower_cup, [236, 120, 30])]),
+    plant("White Tulip", "Makes light gray dye.", &[Pat::Draw(flower_cup, [236, 236, 230])]),
+    plant("Pink Tulip", "Makes pink dye.", &[Pat::Draw(flower_cup, [236, 150, 180])]),
+    plant("Oxeye Daisy", "White petals round a yellow heart. Makes light gray dye.", &[Pat::Draw(flower_star, [244, 244, 236])]),
+    plant("Lily of the Valley", "Little white bells in the woods. Makes white dye.", &[Pat::Draw(flower_bells, [244, 244, 236])]),
+    shaped(plant("Sunflower", "Two blocks tall, on the plains. Makes two yellow dye.", &[Pat::Draw(tall_stem, [70, 140, 50])]), Shape::Plant, 0, Some(Pat::Draw(sunflower, [248, 200, 30]))),
+    state_of(plant("Sunflower (top)", "Two blocks tall, on the plains. Makes two yellow dye.", &[Pat::Draw(sunflower, [248, 200, 30])]), NATURE_ROW + 9 + 0),
+    shaped(plant("Lilac", "Two blocks tall, in the woods. Makes two magenta dye.", &[Pat::Draw(tall_stem, [70, 140, 50])]), Shape::Plant, 0, Some(Pat::Draw(flower_tall_cluster, [200, 140, 220]))),
+    state_of(plant("Lilac (top)", "Two blocks tall, in the woods. Makes two magenta dye.", &[Pat::Draw(flower_tall_cluster, [200, 140, 220])]), NATURE_ROW + 9 + 2),
+    shaped(plant("Rose Bush", "Two blocks tall. Makes two red dye.", &[Pat::Draw(tall_stem, [70, 140, 50])]), Shape::Plant, 0, Some(Pat::Draw(rose_bush, [200, 30, 40]))),
+    state_of(plant("Rose Bush (top)", "Two blocks tall. Makes two red dye.", &[Pat::Draw(rose_bush, [200, 30, 40])]), NATURE_ROW + 9 + 4),
+    shaped(plant("Peony", "Two blocks tall, in the woods. Makes two pink dye.", &[Pat::Draw(tall_stem, [70, 140, 50])]), Shape::Plant, 0, Some(Pat::Draw(flower_tall_cluster, [240, 170, 200]))),
+    state_of(plant("Peony (top)", "Two blocks tall, in the woods. Makes two pink dye.", &[Pat::Draw(flower_tall_cluster, [240, 170, 200])]), NATURE_ROW + 9 + 6),
+    d("Pumpkin", "Grows from a pumpkin stem. Shears carve a face in it; four seeds from one.", &[Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(pumpkin_side, [214, 120, 24])], 1.0, 1.0, AXE, 0, B),
+    facing(d("Carved Pumpkin", "A pumpkin with a face. Add a torch for a jack o'lantern.", &[Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(pumpkin_side, [214, 120, 24]), Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(carved_face, [214, 120, 24])], 1.0, 1.0, AXE, 0, B), 0),
+    state_of(facing(d("Carved Pumpkin", "A pumpkin with a face. Add a torch for a jack o'lantern.", &[Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(pumpkin_side, [214, 120, 24]), Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(carved_face, [214, 120, 24])], 1.0, 1.0, AXE, 0, B), 1), NATURE_ROW + 18),
+    state_of(facing(d("Carved Pumpkin", "A pumpkin with a face. Add a torch for a jack o'lantern.", &[Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(pumpkin_side, [214, 120, 24]), Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(carved_face, [214, 120, 24])], 1.0, 1.0, AXE, 0, B), 2), NATURE_ROW + 18),
+    state_of(facing(d("Carved Pumpkin", "A pumpkin with a face. Add a torch for a jack o'lantern.", &[Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(pumpkin_side, [214, 120, 24]), Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(carved_face, [214, 120, 24])], 1.0, 1.0, AXE, 0, B), 3), NATURE_ROW + 18),
+    facing(shaped(d("Jack o'Lantern", "A carved pumpkin with a torch in it: a bright light.", &[Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(pumpkin_side, [214, 120, 24]), Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(lit_face, [214, 120, 24])], 1.0, 1.0, AXE, 0, U), Shape::Full, 15, None), 0),
+    state_of(facing(shaped(d("Jack o'Lantern", "A carved pumpkin with a torch in it: a bright light.", &[Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(pumpkin_side, [214, 120, 24]), Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(lit_face, [214, 120, 24])], 1.0, 1.0, AXE, 0, U), Shape::Full, 15, None), 1), NATURE_ROW + 22),
+    state_of(facing(shaped(d("Jack o'Lantern", "A carved pumpkin with a torch in it: a bright light.", &[Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(pumpkin_side, [214, 120, 24]), Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(lit_face, [214, 120, 24])], 1.0, 1.0, AXE, 0, U), Shape::Full, 15, None), 2), NATURE_ROW + 22),
+    state_of(facing(shaped(d("Jack o'Lantern", "A carved pumpkin with a torch in it: a bright light.", &[Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(pumpkin_side, [214, 120, 24]), Pat::Draw(pumpkin_top, [214, 120, 24]), Pat::Draw(lit_face, [214, 120, 24])], 1.0, 1.0, AXE, 0, U), Shape::Full, 15, None), 3), NATURE_ROW + 22),
+    d("Melon", "Grows from a melon stem. Breaks into three to seven slices.", &[Pat::Draw(melon_top, [110, 160, 40]), Pat::Draw(melon_side, [110, 160, 40])], 1.0, 1.0, AXE, 0, B),
+    plant("Brown Mushroom", "Grows in shade. With a red mushroom and a bowl, mushroom stew. Bone meal may grow it huge.", &[Pat::Draw(mushroom_brown, [150, 110, 80])]),
+    d("Red Mushroom Block", "The cap of a huge red mushroom. Breaks into a few mushrooms.", &[Pat::Draw(cap_red, [190, 40, 40])], 0.2, 0.2, AXE, 0, B),
+    d("Brown Mushroom Block", "The cap of a huge brown mushroom. Breaks into a few mushrooms.", &[Pat::Draw(flat, [150, 112, 82])], 0.2, 0.2, AXE, 0, B),
+    d("Mushroom Stem", "The stem of a huge mushroom.", &[Pat::Draw(stem_block, [214, 206, 190])], 0.2, 0.2, AXE, 0, B),
+    shaped(d("Lily Pad", "Floats on still water: place it on the water from the shore. You can stand on it.", &[Pat::Draw(lily_pad, [70, 130, 40])], 0.0, 0.0, None, 0, B), Shape::Lily, 0, None),
+    shaped(d("Vines", "Hang them on the side of a block and climb them. Only shears gather them.", &[Pat::Draw(vine, [60, 120, 40])], 0.2, 0.2, None, 0, B), Shape::Vine, 0, None),
+    state_of(shaped(d("Vines", "Hang them on the side of a block and climb them. Only shears gather them.", &[Pat::Draw(vine, [60, 120, 40])], 0.2, 0.2, None, 0, B), Shape::Vine, 0, None), NATURE_ROW + 32),
+    state_of(shaped(d("Vines", "Hang them on the side of a block and climb them. Only shears gather them.", &[Pat::Draw(vine, [60, 120, 40])], 0.2, 0.2, None, 0, B), Shape::Vine, 0, None), NATURE_ROW + 32),
+    state_of(shaped(d("Vines", "Hang them on the side of a block and climb them. Only shears gather them.", &[Pat::Draw(vine, [60, 120, 40])], 0.2, 0.2, None, 0, B), Shape::Vine, 0, None), NATURE_ROW + 32),
+    state_of(plant("Pumpkin Stem", "Grows a pumpkin beside it when ripe.", &[Pat::Draw(stem_crop, [0, 0, 0])]), NATURE_ROW + 36),
+    state_of(plant("Pumpkin Stem", "Grows a pumpkin beside it when ripe.", &[Pat::Draw(stem_crop, [1, 0, 0])]), NATURE_ROW + 36),
+    state_of(plant("Pumpkin Stem", "Grows a pumpkin beside it when ripe.", &[Pat::Draw(stem_crop, [2, 0, 0])]), NATURE_ROW + 36),
+    state_of(plant("Pumpkin Stem", "Grows a pumpkin beside it when ripe.", &[Pat::Draw(stem_crop, [3, 0, 0])]), NATURE_ROW + 36),
+    state_of(plant("Melon Stem", "Grows a melon beside it when ripe.", &[Pat::Draw(stem_crop, [0, 1, 0])]), NATURE_ROW + 40),
+    state_of(plant("Melon Stem", "Grows a melon beside it when ripe.", &[Pat::Draw(stem_crop, [1, 1, 0])]), NATURE_ROW + 40),
+    state_of(plant("Melon Stem", "Grows a melon beside it when ripe.", &[Pat::Draw(stem_crop, [2, 1, 0])]), NATURE_ROW + 40),
+    state_of(plant("Melon Stem", "Grows a melon beside it when ripe.", &[Pat::Draw(stem_crop, [3, 1, 0])]), NATURE_ROW + 40),
+];
+
 /// Joins the groups of rows into one table, at compile time.
 const fn concat<const N: usize>(groups: &[&[Def]]) -> [Def; N] {
     let mut all = [d("", "", &[], 0.0, 0.0, None, 0, B); N];
@@ -353,8 +421,8 @@ pub const DEFS: &[Def] = &{
         shaped(d("Lantern", "Eight iron nuggets round a torch. A steady light that stands on a block.",
             &[Pat::Draw(lantern, [56, 58, 66])], 3.5, 3.5, PICK, 1, U), Shape::Lantern, 15, Some(Pat::Draw(lantern_icon, [56, 58, 66]))),
     ];
-    concat::<{ HEAD_LEN + 16 + TAIL_LEN + PHASE2_LEN + 16 * 3 + WALLS_LEN + 16 * 3 + 9 }>(&[
-        &head, &TERRACOTTAS, &tail, &PHASE2, &STAINED_GLASS, &STAINED_PANES, &CARPETS, &WALLS, &CONCRETES, &POWDERS, &GLAZED, &WOODS,
+    concat::<{ HEAD_LEN + 16 + TAIL_LEN + PHASE2_LEN + 16 * 3 + WALLS_LEN + 16 * 3 + 9 + 44 }>(&[
+        &head, &TERRACOTTAS, &tail, &PHASE2, &STAINED_GLASS, &STAINED_PANES, &CARPETS, &WALLS, &CONCRETES, &POWDERS, &GLAZED, &WOODS, &NATURE,
     ])
 };
 
@@ -423,6 +491,38 @@ pub const fn planks_row(wood: usize) -> usize {
 pub const fn fence_row(wood: usize) -> usize {
     WOOD_ROW + 3 * wood + 2
 }
+pub const NATURE_ROW: usize = 172;
+/// + n: blue orchid, allium, azure bluet, red/orange/white/pink tulip, oxeye daisy,
+/// lily of the valley
+pub const FLOWER_ROW: usize = NATURE_ROW;
+/// + 2 n (lower half; + 1 the upper): sunflower, lilac, rose bush, peony
+pub const TALL_ROW: usize = NATURE_ROW + 9;
+pub const PUMPKIN: usize = NATURE_ROW + 17;
+/// + facing side
+pub const CARVED_PUMPKIN: usize = NATURE_ROW + 18;
+pub const JACK_O_LANTERN: usize = NATURE_ROW + 22;
+pub const MELON: usize = NATURE_ROW + 26;
+pub const BROWN_MUSHROOM: usize = NATURE_ROW + 27;
+pub const RED_MUSHROOM_BLOCK: usize = NATURE_ROW + 28;
+pub const BROWN_MUSHROOM_BLOCK: usize = NATURE_ROW + 29;
+pub const MUSHROOM_STEM: usize = NATURE_ROW + 30;
+pub const LILY_PAD: usize = NATURE_ROW + 31;
+/// + the wall its support is on
+pub const VINE_ROW: usize = NATURE_ROW + 32;
+/// + growth stage
+pub const PUMPKIN_STEM: usize = NATURE_ROW + 36;
+pub const MELON_STEM: usize = NATURE_ROW + 40;
+pub fn is_plant(b: Block) -> bool {
+    shape_is(b, Shape::Plant)
+}
+pub fn is_vine(b: Block) -> bool {
+    shape_is(b, Shape::Vine)
+}
+/// The lower half of a tall flower (`Some(true)`), its upper half (`Some(false)`).
+pub fn tall_flower(b: Block) -> Option<bool> {
+    let r = row_of_block(b)?;
+    (TALL_ROW..TALL_ROW + 8).contains(&r).then_some((r - TALL_ROW) % 2 == 0)
+}
 pub fn is_wood_log(b: Block) -> bool {
     row_of_block(b).is_some_and(|r| r >= WOOD_ROW && (r - WOOD_ROW) % 3 == 0 && r < WOOD_ROW + 9)
 }
@@ -455,7 +555,7 @@ pub fn def(b: Block) -> Option<&'static Def> {
     row_of_block(b).map(|r| &DEFS[r])
 }
 pub fn is_shaped(b: Block) -> bool {
-    def(b).is_some_and(|d| !matches!(d.shape, Shape::Full | Shape::Glass))
+    def(b).is_some_and(|d| !matches!(d.shape, Shape::Full | Shape::Glass | Shape::Plant))
 }
 fn shape_is(b: Block, shape: Shape) -> bool {
     def(b).is_some_and(|d| d.shape == shape)
@@ -517,7 +617,9 @@ pub fn boxes(shape: Shape, drawing: bool) -> crate::world::Boxes {
         }
         Shape::Campfire => &[[0, 0, 0, 16, 7, 16]],
         // (glass is a cube, panes and walls are worked out with their neighbours in `world`)
-        Shape::Glass | Shape::Pane | Shape::Wall | Shape::Fence => &[[0, 0, 0, 16, 16, 16]],
+        Shape::Lily => &[[0, 0, 0, 16, 1, 16]],
+        // (vines are worked out by their row in `world`; plants are not boxes)
+        Shape::Glass | Shape::Pane | Shape::Wall | Shape::Fence | Shape::Plant | Shape::Vine => &[[0, 0, 0, 16, 16, 16]],
     };
     for (k, b) in list.iter().enumerate() {
         v[k] = px(*b);
@@ -594,6 +696,16 @@ pub fn tex(b: Block, face: usize) -> u32 {
     let Some(r) = row_of_block(b) else { return 0 };
     let t = &LAYOUT.1[r].0;
     let at = |i: usize| t[i.min(t.len() - 1)];
+    if let Some(side) = DEFS[r].front {
+        // the front on the one side it faces, the sides' texture on the rest
+        let front_face = [1, 0, 5, 4][side as usize];
+        return match face {
+            2 => at(0),
+            3 => at(2),
+            f if f == front_face => at(3),
+            _ => at(1),
+        };
+    }
     match (t.len(), face) {
         (1, _) => at(0),
         (2, 2 | 3) => at(0),
@@ -1057,6 +1169,174 @@ fn fence_icon(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
         CLEAR
     }
 }
+fn stalk(x: i32, y: i32) -> Option<[u8; 4]> {
+    if (x == 7 || x == 8) && y >= 8 {
+        return Some(sh([70, 140, 50], if x == 8 { 0.8 } else { 1.0 }));
+    }
+    if (y == 11 && (4..=6).contains(&x)) || (y == 12 && (9..=11).contains(&x)) {
+        return Some(sh([80, 160, 56], 1.0));
+    }
+    None
+}
+/// a tulip: a cup of petals on a stalk
+fn flower_cup(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    if (5..=10).contains(&x) && (2..=7).contains(&y) && !(y == 2 && matches!(x, 6 | 9)) {
+        return sh(c, if x == 5 || x == 10 { 0.8 } else { 1.0 + hash(x, y, 60) * 0.1 });
+    }
+    stalk(x, y).unwrap_or(CLEAR)
+}
+/// petals round a heart (yellow in a white daisy)
+fn flower_star(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let (dx, dy) = (x - 7, y - 5);
+    if dx.abs() + dy.abs() <= 1 {
+        return sh(if c[0] > 200 && c[2] > 200 { [240, 200, 40] } else { [250, 240, 200] }, 1.0);
+    }
+    if (dx.abs() <= 3 && dy == 0) || (dy.abs() <= 3 && dx == 0) || (dx.abs() == dy.abs() && dx.abs() <= 2) {
+        return sh(c, 0.95 + hash(x, y, 61) * 0.1);
+    }
+    stalk(x, y).unwrap_or(CLEAR)
+}
+fn flower_ball(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let (dx, dy) = (x as f32 - 7.5, y as f32 - 4.5);
+    if dx * dx + dy * dy <= 10.0 {
+        return sh(c, if (x + y) % 2 == 0 { 1.1 } else { 0.85 });
+    }
+    stalk(x, y).unwrap_or(CLEAR)
+}
+/// four small flowers on their own stalks
+fn flower_cluster(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    const HEADS: [(i32, i32); 4] = [(4, 6), (8, 4), (11, 7), (7, 9)];
+    for (cx, cy) in HEADS {
+        let (dx, dy) = (x - cx, y - cy);
+        if dx.abs() + dy.abs() <= 1 {
+            return if dx == 0 && dy == 0 { sh([240, 210, 60], 1.0) } else { sh(c, 1.0) };
+        }
+    }
+    if HEADS.iter().any(|&(cx, cy)| x == cx && y > cy + 1) {
+        return sh([70, 140, 50], 1.0);
+    }
+    CLEAR
+}
+/// white bells hanging from an arching stalk, over two broad leaves
+fn flower_bells(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    if (y == 3 && (5..=11).contains(&x)) || (x == 5 && (3..=15).contains(&y)) {
+        return sh([70, 140, 50], 1.0);
+    }
+    if matches!(x, 7 | 9 | 11) && (4..=6).contains(&y) {
+        return sh(c, if y == 6 { 0.85 } else { 1.0 });
+    }
+    if (y >= 9 && (2..=4).contains(&x)) || (y >= 10 && (6..=8).contains(&x)) {
+        return sh([60, 150, 60], 0.9 + hash(x, y, 62) * 0.15);
+    }
+    CLEAR
+}
+/// the lower half of a tall flower: a stalk and leaves
+fn tall_stem(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    if x == 7 || x == 8 {
+        return sh(c, if x == 8 { 0.8 } else { 1.0 });
+    }
+    if (y + x) % 7 < 2 && (3..=12).contains(&x) { sh(c, 1.1) } else { CLEAR }
+}
+fn sunflower(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let (dx, dy) = (x as f32 - 7.5, y as f32 - 6.5);
+    let r = (dx * dx + dy * dy).sqrt();
+    if r < 2.6 {
+        sh([110, 70, 30], 0.9 + hash(x, y, 63) * 0.2)
+    } else if r < 5.5 {
+        sh(c, if (dy.atan2(dx) * 3.0).sin() > 0.0 { 1.0 } else { 0.85 })
+    } else if (x == 7 || x == 8) && y > 10 {
+        sh([70, 140, 50], 1.0)
+    } else {
+        CLEAR
+    }
+}
+fn flower_tall_cluster(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let (dx, dy) = (x as f32 - 7.5, y as f32 - 6.0);
+    if dx * dx / 20.0 + dy * dy / 30.0 <= 1.0 && hash(x, y, 64) > 0.18 {
+        sh(c, 0.85 + hash(x / 2, y / 2, 65) * 0.3)
+    } else if (x == 7 || x == 8) && y > 10 {
+        sh([70, 140, 50], 1.0)
+    } else {
+        CLEAR
+    }
+}
+fn rose_bush(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    if y < 2 || hash(x / 2, y / 2, 66) <= 0.35 {
+        return CLEAR;
+    }
+    if hash(x / 3, y / 3, 67) > 0.72 { sh(c, 0.9 + hash(x, y, 68) * 0.2) } else { sh([50, 110, 40], 0.85 + hash(x, y, 69) * 0.2) }
+}
+fn pumpkin_top(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    if (7..=8).contains(&x) && (7..=8).contains(&y) {
+        return sh([90, 110, 40], 1.0);
+    }
+    let r = ((x as f32 - 7.5).powi(2) + (y as f32 - 7.5).powi(2)).sqrt() as i32;
+    sh(c, if r % 4 == 0 { 0.82 } else { 0.95 + hash(x, y, 70) * 0.08 })
+}
+fn pumpkin_side(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    sh(c, if x % 4 == 0 { 0.78 } else { 0.95 + hash(x, y, 71) * 0.08 - (y as f32 - 7.5).abs() * 0.008 })
+}
+fn face_at(x: i32, y: i32) -> bool {
+    let eye = (matches!(x, 3..=5) || matches!(x, 10..=12)) && matches!(y, 4..=6) && !(y == 4 && matches!(x, 3 | 12));
+    let mouth = matches!(y, 9..=11) && (3..=12).contains(&x) && !(y == 9 && matches!(x, 5 | 6 | 9 | 10)) && !(y == 11 && matches!(x, 3 | 12));
+    eye || mouth
+}
+fn carved_face(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    if face_at(x, y) { sh([60, 30, 10], 1.0) } else { pumpkin_side(x, y, c) }
+}
+fn lit_face(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    if face_at(x, y) { sh([255, 220, 90], 1.0 + hash(x, y, 72) * 0.05) } else { pumpkin_side(x, y, c) }
+}
+fn melon_top(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let r = ((x as f32 - 7.5).powi(2) + (y as f32 - 7.5).powi(2)).sqrt() as i32;
+    sh(c, if r % 3 == 0 { 0.75 } else { 1.0 + hash(x, y, 73) * 0.1 })
+}
+fn melon_side(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    sh(c, if (x + (y / 3) % 2) % 4 < 2 { 1.15 } else { 0.8 } + hash(x, y, 74) * 0.06)
+}
+fn mushroom_brown(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    if (4..=11).contains(&x) && (6..=8).contains(&y) && !(y == 6 && matches!(x, 4 | 11)) {
+        sh(c, if y == 8 { 0.8 } else { 1.0 })
+    } else if (7..=8).contains(&x) && (9..=13).contains(&y) {
+        sh([224, 214, 194], 1.0)
+    } else {
+        CLEAR
+    }
+}
+fn cap_red(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let spot = [(3, 3), (10, 4), (6, 9), (12, 11), (2, 12)].iter().any(|&(sx, sy)| (x - sx).abs() + (y - sy).abs() <= 1);
+    if spot { sh([240, 236, 226], 1.0) } else { sh(c, 0.92 + hash(x, y, 75) * 0.1) }
+}
+fn stem_block(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    sh(c, if x % 5 == 2 { 0.88 } else { 0.97 + hash(x, y, 76) * 0.05 })
+}
+/// a round pad with a notch, its veins
+fn lily_pad(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let (dx, dy) = (x as f32 - 7.5, y as f32 - 7.5);
+    let r = (dx * dx + dy * dy).sqrt();
+    if r > 7.4 || (dx > 0.0 && dy.abs() < dx * 0.4) {
+        CLEAR
+    } else {
+        sh(c, if r > 6.4 { 0.8 } else { 0.95 + hash(x, y, 77) * 0.12 + if (dy.atan2(dx) * 4.0).sin().abs() < 0.12 { 0.15 } else { 0.0 } })
+    }
+}
+fn vine(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let strand = (x + y / 3) % 5 == 0 || (x * 3 + y) % 11 == 0;
+    if strand || hash(x / 2, y / 2, 78) > 0.55 { sh(c, 0.85 + hash(x, y, 79) * 0.25) } else { CLEAR }
+}
+/// a pumpkin (c[1] = 0) or melon (1) stem at growth stage c[0]
+fn stem_crop(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
+    let stage = c[0] as i32;
+    let top = 12 - stage * 3;
+    let colour = if stage == 3 { if c[1] == 0 { [170, 140, 60] } else { [140, 150, 60] } } else { [90, 160, 60] };
+    if (x == 7 || x == 8) && y >= top {
+        sh(colour, if x == 8 { 0.8 } else { 1.0 })
+    } else if y > top && (y - top) % 3 == 1 && (x - 7).abs() <= (y - top) / 2 + 1 {
+        sh(colour, 1.1)
+    } else {
+        CLEAR
+    }
+}
 fn lantern_icon(x: i32, y: i32, c: [u8; 3]) -> [u8; 4] {
     match (x, y) {
         (7..=8, 1..=2) | (6..=9, 3..=4) => sh(c, 1.0),
@@ -1103,7 +1383,8 @@ mod tests {
         assert_eq!((DEFS[CONCRETE_ROW].name, DEFS[POWDER_ROW + 15].name), ("White Concrete", "Black Concrete Powder"));
         assert_eq!(DEFS[GLAZED_ROW + 15].name, "Black Glazed Terracotta");
         assert_eq!((DEFS[log_row(0)].name, DEFS[planks_row(1)].name, DEFS[fence_row(2)].name), ("Spruce Log", "Jungle Planks", "Acacia Fence"));
-        assert_eq!(DEFS.len(), WOOD_ROW + 9);
+        assert_eq!(DEFS.len(), NATURE_ROW + 44);
+        assert_eq!((DEFS[PUMPKIN].name, DEFS[LILY_PAD].name, DEFS[MELON_STEM + 3].name), ("Pumpkin", "Lily Pad", "Melon Stem"));
         assert_eq!(item_of_block(block(HANGING_LANTERN)), Some(item(LANTERN)));
         assert_eq!(drawn().len(), layer_count());
         for (r, def) in DEFS.iter().enumerate() {
@@ -1115,7 +1396,8 @@ mod tests {
         }
         for k in 0..layer_count() {
             let shown = (0..256).filter(|i| pixel(k, i % 16, i / 16)[3] > 0).count();
-            assert!(shown > 30, "layer {k}");
+            // (a young stem or a small flower shows little)
+            assert!(shown > 8, "layer {k}");
         }
     }
 }

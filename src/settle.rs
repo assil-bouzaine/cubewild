@@ -274,6 +274,49 @@ fn held(world: &World, start: IVec3) -> bool {
     false
 }
 
+/// The huge mushroom a mushroom at `at` grows into (red: a dome; brown: a wide flat cap),
+/// if it stands on dirt or grass and there is room: the blocks to set.
+pub fn huge_mushroom(world: &World, at: IVec3, red: bool, rng: &mut Rng) -> Option<Vec<(IVec3, Block)>> {
+    use crate::catalogue::{block, BROWN_MUSHROOM_BLOCK, MUSHROOM_STEM, RED_MUSHROOM_BLOCK};
+    let get = |c: IVec3| world.get_block(c.x, c.y, c.z);
+    let soil = get(at - IVec3::Y);
+    if !(soil == DIRT || is_grassy(soil)) {
+        return None;
+    }
+    let h = 5 + (rng.next() % 3) as i32;
+    let mut out: Vec<(IVec3, Block)> = (0..h).map(|dy| (at + IVec3::new(0, dy, 0), block(MUSHROOM_STEM))).collect();
+    let cap = block(if red { RED_MUSHROOM_BLOCK } else { BROWN_MUSHROOM_BLOCK });
+    if red {
+        // a lid of three by three over three rings of five by five
+        for dz in -1..=1 {
+            for dx in -1..=1 {
+                out.push((at + IVec3::new(dx, h, dz), cap));
+            }
+        }
+        for dy in h - 3..h {
+            for dz in -2i32..=2 {
+                for dx in -2i32..=2 {
+                    if (dx.abs() == 2 || dz.abs() == 2) && !(dx.abs() == 2 && dz.abs() == 2) {
+                        out.push((at + IVec3::new(dx, dy, dz), cap));
+                    }
+                }
+            }
+        }
+    } else {
+        // one wide layer, seven across with the corners cut
+        for dz in -3i32..=3 {
+            for dx in -3i32..=3 {
+                if !(dx.abs() == 3 && dz.abs() == 3) {
+                    out.push((at + IVec3::new(dx, h, dz), cap));
+                }
+            }
+        }
+    }
+    // it needs open space (the mushroom itself aside) all the way
+    let room = out.iter().all(|&(c, _)| c == at || (c.y < CH - 1 && (get(c) == AIR || is_tuft(get(c)) || is_leaves(get(c)))));
+    room.then_some(out)
+}
+
 /// The tree a sapling at `at` grows into, if there is room for it: the blocks to set.
 pub fn grow(world: &World, at: IVec3, sapling: Block, rng: &mut Rng) -> Option<Vec<(IVec3, Block)>> {
     tree(&|c: IVec3| world.get_block(c.x, c.y, c.z), at, sapling, rng)
@@ -487,6 +530,24 @@ mod tests {
         assert!(!loose(DIRT) && !loose(STONE) && !loose(ASH));
         assert!(holds(STONE) && holds(SLAB) && !holds(AIR) && !holds(WATER) && !holds(TORCH) && !holds(TALL_GRASS));
     }
+
+#[cfg(test)]
+mod mushroom_tests {
+    use super::*;
+    use crate::catalogue::{block, BROWN_MUSHROOM_BLOCK, MUSHROOM_STEM, RED_MUSHROOM_BLOCK};
+    #[test]
+    fn mushrooms_grow_huge_on_dirt_where_there_is_room() {
+        let world = World::flat(|x, y, z| if y == 9 { Some(if x < 8 { DIRT } else { STONE }) } else if (x, y, z) == (2, 14, 20) { Some(STONE) } else { None });
+        let mut rng = Rng(3);
+        let red = huge_mushroom(&world, IVec3::new(2, 10, 2), true, &mut rng).unwrap();
+        assert!(red.iter().any(|e| e.1 == block(RED_MUSHROOM_BLOCK)) && red.iter().filter(|e| e.1 == block(MUSHROOM_STEM)).count() >= 5);
+        let brown = huge_mushroom(&world, IVec3::new(2, 10, 2), false, &mut rng).unwrap();
+        assert_eq!(brown.iter().filter(|e| e.1 == block(BROWN_MUSHROOM_BLOCK)).count(), 45);
+        // not on stone, and not under a roof
+        assert!(huge_mushroom(&world, IVec3::new(12, 10, 2), true, &mut rng).is_none());
+        assert!(huge_mushroom(&world, IVec3::new(2, 10, 20), false, &mut rng).is_none());
+    }
+}
 
 #[cfg(test)]
 mod concrete_tests {

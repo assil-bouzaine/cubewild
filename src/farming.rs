@@ -1,6 +1,7 @@
 //! Bounded random crop ticks. Water reaches four cells (including diagonals),
 //! moisture lasts through short dry spells, and crops need light level nine.
 use crate::items::{self, Item};
+use crate::catalogue::{block, MELON, MELON_STEM, PUMPKIN, PUMPKIN_STEM};
 use crate::world::*;
 use glam::IVec3;
 
@@ -24,6 +25,9 @@ pub fn crop(b: Block) -> Option<(Block, u8)> {
         Some((CARROTS, (b - CARROTS) as u8))
     } else if (POTATOES..POTATOES + 4).contains(&b) {
         Some((POTATOES, (b - POTATOES) as u8))
+    } else if let Some(r) = crate::catalogue::row_of_block(b).filter(|&r| (PUMPKIN_STEM..MELON_STEM + 4).contains(&r)) {
+        let base = if r < MELON_STEM { PUMPKIN_STEM } else { MELON_STEM };
+        Some((block(base), (r - base) as u8))
     } else {
         None
     }
@@ -33,11 +37,20 @@ pub fn plant(item: Item) -> Option<Block> {
         items::SEEDS => Some(WHEAT_0),
         items::CARROT => Some(CARROTS),
         items::POTATO => Some(POTATOES),
+        items::PUMPKIN_SEEDS => Some(block(PUMPKIN_STEM)),
+        items::MELON_SEEDS => Some(block(MELON_STEM)),
         _ => None,
     }
 }
 pub fn harvest(b: Block) -> Option<(Item, u32)> {
     let (base, stage) = crop(b)?;
+    // (a stem gives back its seed)
+    if base == block(PUMPKIN_STEM) {
+        return Some((items::PUMPKIN_SEEDS, 1));
+    }
+    if base == block(MELON_STEM) {
+        return Some((items::MELON_SEEDS, 1));
+    }
     let item = if base == WHEAT_0 {
         if stage == 3 { items::WHEAT } else { items::SEEDS }
     } else if base == CARROTS {
@@ -80,10 +93,21 @@ pub fn tick(w: &mut World, p: IVec3, daylight: f32, rain: bool, roll: u32) {
             return;
         };
         let sky = if w.sky_level(p.x, p.y, p.z) > 0 { (daylight * 15.0).round() as u8 } else { 0 };
+        let (base, _) = crop(b).unwrap();
+        let stem = base == crate::catalogue::block(PUMPKIN_STEM) || base == crate::catalogue::block(MELON_STEM);
         if stage < 3 && block.max(sky) >= 9 {
             let moist = moisture(w.get_block(p.x, p.y - 1, p.z)).unwrap_or(0) > 0;
             if roll % if moist { 2 } else { 6 } == 0 {
                 w.set_block_bg(p.x, p.y, p.z, b + 1);
+            }
+        } else if stem && stage == 3 && block.max(sky) >= 9 && roll % 3 == 0 {
+            // a ripe stem grows its fruit on free ground beside it, as in Minecraft
+            let (dx, dz) = SIDE_DIR[(roll >> 8) as usize % 4];
+            let at = p + IVec3::new(dx, 0, dz);
+            let under = w.get_block(at.x, at.y - 1, at.z);
+            if w.get_block(at.x, at.y, at.z) == AIR && (under == DIRT || is_grassy(under) || moisture(under).is_some()) {
+                let fruit = crate::catalogue::block(if base == crate::catalogue::block(PUMPKIN_STEM) { PUMPKIN } else { MELON });
+                w.set_block_bg(at.x, at.y, at.z, fruit);
             }
         }
     }
@@ -92,6 +116,31 @@ pub fn tick(w: &mut World, p: IVec3, daylight: f32, rain: bool, roll: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pumpkin_stems_ripen_and_grow_a_pumpkin_beside_them() {
+        let stem = block(PUMPKIN_STEM);
+        assert_eq!((crop(stem), crop(stem + 3)), (Some((stem, 0)), Some((stem, 3))));
+        assert_eq!((harvest(stem + 3), plant(items::MELON_SEEDS)), (Some((items::PUMPKIN_SEEDS, 1)), Some(block(MELON_STEM))));
+        assert!(is_plant(stem) && !is_solid(stem));
+        let mut w = World::flat(|x, y, z| match (x, y, z) {
+            (4, 10, 4) => Some(WET_FARMLAND + 6),
+            (4, 11, 4) => Some(stem + 3),
+            (_, 10, _) => Some(GRASS),
+            _ => None,
+        });
+        w.bake_test_light();
+        let at = IVec3::new(4, 11, 4);
+        let mut grown = 0;
+        for roll in 0..64u32 {
+            tick(&mut w, at, 1.0, false, roll * 3 << 8 | 0);
+            grown = SIDE_DIR.iter().filter(|&&(dx, dz)| w.get_block(4 + dx, 11, 4 + dz) == block(PUMPKIN)).count();
+            if grown > 0 {
+                break;
+            }
+        }
+        assert_eq!(grown, 1, "one pumpkin on the grass beside the ripe stem");
+        assert_eq!(w.get_block(4, 11, 4), stem + 3, "the stem stays");
+    }
     #[test]
     fn irrigation_reaches_four_blocks_and_dry_planted_soil_survives() {
         let mut w = World::flat(|x, y, z| {

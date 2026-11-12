@@ -107,6 +107,8 @@ fn pattern(r: &Recipe) -> Option<(usize, Vec<Item>)> {
             i if i == cat(c::GRINDSTONE) => (3, vec![p, SLAB + 2, p, PLANKS, 0, PLANKS]),
             i if i == cat(c::LOOM) => (2, vec![p, p, PLANKS, PLANKS]),
             i if i == cat(c::LANTERN) => (3, vec![p, p, p, p, TORCH, p, p, p, p]),
+            // a carved pumpkin over a torch
+            i if i == cat(c::JACK_O_LANTERN) => (1, vec![p, TORCH]),
             i if i == cat(c::CAMPFIRE) || i == cat(c::SOUL_CAMPFIRE) => {
                 let (fuel, log) = (r.ins[1].0, r.ins[2].0);
                 (3, vec![0, p, 0, p, fuel, p, log, log, log])
@@ -425,6 +427,31 @@ mod tests {
         assert!(inv.can_craft(chest) && inv.craft(chest));
         assert_eq!((inv.count(sp) + inv.count(ju), inv.count(CHEST)), (0, 1));
         assert_eq!(crate::furnace::smelt(log), Some((COAL, 1)));
+    }
+    #[test]
+    fn nature_blocks_follow_minecraft() {
+        use crate::catalogue as c;
+        assert_eq!(made([cat(c::FLOWER_ROW + 1), 0, 0, 0, 0, 0, 0, 0, 0], false), Some((DYE + 2, 1)));
+        assert_eq!(made([cat(c::TALL_ROW), 0, 0, 0, 0, 0, 0, 0, 0], false), Some((DYE + 4, 2)));
+        assert_eq!(made([cat(c::CARVED_PUMPKIN), 0, 0, TORCH, 0, 0, 0, 0, 0], false), Some((cat(c::JACK_O_LANTERN), 1)));
+        assert_eq!(made([MELON_SLICE; 9], true), Some((cat(c::MELON), 1)));
+        assert_eq!(made([MUSHROOM, cat(c::BROWN_MUSHROOM), BOWL, 0, 0, 0, 0, 0, 0], false), Some((STEW, 1)));
+        // the tall flowers' tops, the facings and the vines' walls are states, not items
+        for row in [c::TALL_ROW + 1, c::CARVED_PUMPKIN + 2, c::JACK_O_LANTERN + 3, c::VINE_ROW + 1, c::PUMPKIN_STEM + 2] {
+            assert!(!valid(cat(row)), "row {row}");
+        }
+        assert_eq!(item_of(c::block(c::TALL_ROW + 3)), cat(c::TALL_ROW + 2));
+        assert_eq!(item_of(c::block(c::PUMPKIN_STEM + 2)), PUMPKIN_SEEDS);
+        assert_eq!(item_of(c::block(c::JACK_O_LANTERN + 1)), cat(c::JACK_O_LANTERN));
+        // a carved pumpkin shows its face on the one side it faces
+        let facing_east = c::block(c::CARVED_PUMPKIN + 1);
+        assert_ne!(tex_for(facing_east, 0), tex_for(facing_east, 1));
+        assert_eq!(tex_for(facing_east, 1), tex_for(facing_east, 4));
+        assert!(is_light(c::block(c::JACK_O_LANTERN)) && is_plant(c::block(c::FLOWER_ROW)) && !is_solid(c::block(c::FLOWER_ROW)));
+        assert!(is_climbable(c::block(c::VINE_ROW + 2)) && !is_solid(c::block(c::VINE_ROW + 2)));
+        assert_eq!(drop_for(c::block(c::VINE_ROW), AIR), AIR);
+        assert_eq!(drop_for(c::block(c::VINE_ROW + 1), SHEARS), cat(c::VINE_ROW));
+        assert_eq!((food(MELON_SLICE), crate::furnace::smelt(MELON_SLICE)), (2.0, None));
     }
     #[test]
     fn grindstones_refund_levels_and_anvils_wear_out() {

@@ -262,7 +262,7 @@ pub fn torch_box(b: Block) -> [f32; 6] {
 /// The terrain generator a world was made with: 1 the first one, 2 the one with biomes
 /// (`worldgen`), 3 the same with villages in it (`village`). A world keeps its generator
 /// for good, or old and new chunks would not fit.
-pub const GEN_LATEST: u8 = 4;
+pub const GEN_LATEST: u8 = 5;
 
 /// Shapes that live only in the world, one id per state (their items are in `items`).
 /// Upper half slabs, same order as `SLAB`.
@@ -435,6 +435,14 @@ pub fn is_pane(b: Block) -> bool {
 fn wall_joins(b: Block) -> bool {
     crate::catalogue::is_wall(b) || is_pane(b) || crate::building::is_fence_gate(b) || (is_opaque(b) && !is_leaves(b))
 }
+/// Vines: a sheet against the wall their support is on (`off` stands the drawn sheet off
+/// the wall, as a ladder's is).
+fn vine_boxes(b: Block, off: f32) -> Boxes {
+    let wall = (crate::catalogue::row_of_block(b).unwrap() - crate::catalogue::VINE_ROW) as u8;
+    let mut v = [[0.0f32; 6]; 8];
+    v[0] = side_box(wall, off, off + 0.0625);
+    (v, 1)
+}
 /// A wall: a post, unless it runs straight through, and an arm to each neighbour it
 /// joins. It collides one and a half blocks high, like a fence.
 fn wall_boxes(at: impl Fn(i32, i32) -> Block, drawing: bool) -> Boxes {
@@ -489,6 +497,7 @@ pub fn shape_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
     if crate::building::is_chest(b) {return crate::building::chest_boxes(b, at, false);}
     if crate::building::is_bed(b) {return crate::building::bed_boxes(b, false);}
     if crate::catalogue::is_wall(b) {return wall_boxes(at, false);}
+    if crate::catalogue::is_vine(b) {return vine_boxes(b, 0.0);}
     if !is_pane(b) {
         if let Some(shape) = catalogue_shape(b) {return crate::catalogue::boxes(shape, false);}
     }
@@ -581,6 +590,7 @@ fn draw_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
     if crate::building::is_chest(b) {return crate::building::chest_boxes(b, at, true);}
     if crate::building::is_bed(b) {return crate::building::bed_boxes(b, true);}
     if crate::catalogue::is_wall(b) {return wall_boxes(at, true);}
+    if crate::catalogue::is_vine(b) {return vine_boxes(b, 0.0625);}
     if let Some(shape) = catalogue_shape(b).filter(|&s| s != crate::catalogue::Shape::Pane) {return crate::catalogue::boxes(shape, true);}
     if is_fence(b) {
         let mut v = [[0.0f32; 6]; 8];
@@ -609,14 +619,14 @@ fn catalogue_shape(b: Block) -> Option<crate::catalogue::Shape> {
     match b {
         ANVIL => Some(Shape::Anvil),
         ENCHANTING_TABLE => Some(Shape::Table),
-        _ => crate::catalogue::def(b).map(|d| d.shape).filter(|&s| !matches!(s, Shape::Full | Shape::Glass | Shape::Fence)),
+        _ => crate::catalogue::def(b).map(|d| d.shape).filter(|&s| !matches!(s, Shape::Full | Shape::Glass | Shape::Fence | Shape::Plant)),
     }
 }
 
 /// Small plants drawn as two crossed planes; you walk through them.
 #[inline]
 pub fn is_plant(b: Block) -> bool {
-    crate::farming::crop(b).is_some() || (TALL_GRASS..=DEAD_BUSH).contains(&b) || (WHEAT_0..=WHEAT_3).contains(&b) || b == FLOWER_BLUE || (FERN..=DRY_TUFT).contains(&b) || is_sapling(b)
+    crate::farming::crop(b).is_some() || crate::catalogue::is_plant(b) || (TALL_GRASS..=DEAD_BUSH).contains(&b) || (WHEAT_0..=WHEAT_3).contains(&b) || b == FLOWER_BLUE || (FERN..=DRY_TUFT).contains(&b) || is_sapling(b)
 }
 /// Grass tufts and their kin: cut for fibre and seeds.
 #[inline]
@@ -645,7 +655,12 @@ pub fn is_opaque(b: Block) -> bool {
 /// Blocks you collide with / can target.
 #[inline]
 pub fn is_solid(b: Block) -> bool {
-    b != AIR && !is_fluid(b) && !is_torch(b) && !is_plant(b) && !is_ladder(b) && !is_gate(b) && !crate::building::is_sign(b)
+    b != AIR && !is_fluid(b) && !is_torch(b) && !is_plant(b) && !is_climbable(b) && !is_gate(b) && !crate::building::is_sign(b)
+}
+/// Ladders and vines: walk into them to climb.
+#[inline]
+pub fn is_climbable(b: Block) -> bool {
+    is_ladder(b) || crate::catalogue::is_vine(b)
 }
 /// Blocks the crosshair can select (torches are walk-through but breakable).
 #[inline]
@@ -1174,7 +1189,7 @@ fn generate_for(ver: u8, seed: u32, cx: i32, cz: i32) -> ChunkData {
     let made = if ver == crate::deep::DEEP_VER {
         crate::deep::generate(seed, cx, cz)
     } else if ver >= 2 {
-        crate::worldgen::generate(seed, cx, cz, ver >= 3, ver >= 4)
+        crate::worldgen::generate(seed, cx, cz, ver >= 3, ver >= 4, ver >= 5)
     } else {
         generate(seed, cx, cz)
     };

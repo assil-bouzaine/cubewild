@@ -68,8 +68,14 @@ jungle and acacia trees their own logs and changes nothing else; worlds made wit
 generator 3 or older keep oak trunks. Recipes that Minecraft makes from any planks or
 any log take every wood (`crafting::takes`). Dark oak needs a dark forest first.
 
+Done (phase 5): nine flowers and four tall flowers with their dyes, pumpkins (carved and
+lit, one row per facing via `Def::front`), melons, their stems (crops that fruit beside
+themselves), brown mushrooms, huge mushrooms from bone meal (`settle::huge_mushroom`),
+mushroom blocks, lily pads and climbable vines. Generator 5 places them and only adds to
+what generator 4 made (tested).
+
 Next phases, by how well they fit:
-1. Nature blocks: pumpkins, melons, flowers, vines, lily pads, mushroom blocks, coral.
+1. Waterlogging (blocks standing in water), then coral, seagrass, kelp and sea pickles.
 2. Brewing stand (needs potions); facing for glazed terracotta; stripped logs and wood;
    boats per wood; dark oak with a dark forest biome.
 3. Redstone (54 blocks) once there is a power system.

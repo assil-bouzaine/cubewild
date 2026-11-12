@@ -152,6 +152,32 @@ pub fn pixel(k: usize, x: i32, y: i32) -> [u8; 4] {
                 shade([110.0, 170.0, 70.0], if x % 2 == 1 { 0.85 } else { 1.0 })
             }
         }
+        // pumpkin and melon seeds: a scatter of flat seeds
+        14 | 15 => {
+            let seeds = [(4, 5), (9, 4), (6, 9), (11, 9), (8, 12)];
+            let colour = if k == 14 { [230.0, 214.0, 150.0] } else { [40.0, 30.0, 26.0] };
+            if seeds.iter().any(|&(sx, sy)| (x - sx).abs() <= 1 && (y - sy).abs() <= 0 || (x == sx && (y - sy).abs() == 1)) {
+                shade(colour, 0.9 + n * 0.2)
+            } else {
+                CLEAR
+            }
+        }
+        // melon slice: a wedge of red flesh with seeds, in green rind
+        16 => {
+            let (dx, dy) = (x as f32 - 8.0, y as f32 - 3.0);
+            let r = (dx * dx + dy * dy).sqrt();
+            if dy < 0.0 || r > 10.5 || dx.abs() > dy + 1.0 {
+                CLEAR
+            } else if r > 9.0 {
+                shade([90.0, 150.0, 50.0], 1.0)
+            } else if r > 8.0 {
+                shade([220.0, 230.0, 160.0], 1.0)
+            } else if (x + y) % 5 == 0 && r > 3.0 {
+                shade([30.0, 24.0, 20.0], 1.0)
+            } else {
+                shade([230.0, 60.0, 60.0], 0.92 + n * 0.1)
+            }
+        }
         _ => CLEAR,
     }
 }
@@ -160,7 +186,7 @@ pub fn pixel(k: usize, x: i32, y: i32) -> [u8; 4] {
 mod tests {
     #[test]
     fn every_new_item_has_a_visible_icon_inside_its_layer() {
-        for k in 0..(crate::items::PLAIN_END - crate::items::BOWL) as usize {
+        for k in (0..(crate::items::PLAIN_END - crate::items::BOWL) as usize).chain(14..17) {
             assert!(k < crate::textures::MORE_ICON_COUNT);
             let mut shown = 0;
             for y in 0..16 {

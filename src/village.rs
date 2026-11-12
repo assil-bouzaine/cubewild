@@ -603,14 +603,14 @@ mod tests {
                 let homes = v.lots.iter().filter(|l| !l.farm).count();
                 assert!(homes >= 3 && v.homes.len() >= homes && !v.spots.is_empty());
                 // every chunk it touches, generated on its own, fits the others
-                let at = |x: i32, y: i32, z: i32| worldgen::generate(seed, x >> 4, z >> 4, true, true).get(x & 15, y, z & 15);
+                let at = |x: i32, y: i32, z: i32| worldgen::generate(seed, x >> 4, z >> 4, true, true, true).get(x & 15, y, z & 15);
                 assert_eq!(at(v.x, v.g + 1, v.z), WATER, "seed {seed}: the well of {:?}", v.region);
                 for l in v.lots.iter().filter(|l| !l.farm) {
                     assert!((l.x0 - v.x).abs().max((l.x1 - v.x).abs()).max((l.z0 - v.z).abs()).max((l.z1 - v.z).abs()) < REACH - 1);
                     let (dx, dz) = l.door();
                     assert!(is_door(at(dx, l.g + 1, dz)) && door_open(at(dx, l.g + 1, dz)) && door_upper(at(dx, l.g + 2, dz)));
                     // the four corners stand on something, the roof is on, and the way in is clear
-                    let ch = worldgen::generate(seed, l.x0 >> 4, l.z0 >> 4, true, true);
+                    let ch = worldgen::generate(seed, l.x0 >> 4, l.z0 >> 4, true, true, true);
                     let (cx, cz) = (l.x0 & 15, l.z0 & 15);
                     assert!((l.g..=l.g + 3).all(|y| is_opaque(ch.get(cx, y, cz))), "seed {seed}: a corner hangs at {} {}", l.x0, l.z0);
                     let (mx, mz) = ((l.x0 + l.x1) / 2, (l.z0 + l.z1) / 2);
