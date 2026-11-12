@@ -308,6 +308,7 @@ pub fn is_door(b: Block) -> bool {
 #[inline]
 pub fn is_shaped(b: Block) -> bool {
     (PANE..=CHEST).contains(&b) || (SLAB_TOP..=255).contains(&b) || is_slab(b) || is_stairs(b) || crate::building::is_fence_gate(b) || crate::building::is_sign(b)
+        || crate::building::is_chest(b) || crate::building::is_bed(b)
 }
 #[inline]
 pub fn is_slab(b: Block) -> bool {
@@ -411,6 +412,8 @@ pub fn shape_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
     let mut v = [[0.0f32; 6]; 5];
     if crate::building::is_fence_gate(b) {return crate::building::gate_boxes(b,false);}
     if crate::building::is_sign(b) {return crate::building::sign_boxes(b);}
+    if crate::building::is_chest(b) {return crate::building::chest_boxes(b, at, false);}
+    if crate::building::is_bed(b) {return crate::building::bed_boxes(b, false);}
     let n = if is_door(b) {
         v[0] = side_box(door_sides(b).0, 0.0, DOOR_THICK);
         1
@@ -473,9 +476,6 @@ pub fn shape_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
             }
         }
         n
-    } else if b == CHEST || b == LOOT_CHEST {
-        v[0] = [0.0625, 0.0, 0.0625, 0.9375, 0.875, 0.9375];
-        1
     } else if is_ladder(b) {
         v[0] = side_box((b - LADDER_BASE) as u8, 0.0, DOOR_THICK);
         1
@@ -500,6 +500,8 @@ pub fn shape_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
 /// wears: finer than `shape_boxes` (fence rails, a ladder standing off its wall).
 fn draw_boxes(b: Block, at: impl Fn(i32, i32) -> Block) -> Boxes {
     if crate::building::is_fence_gate(b) {return crate::building::gate_boxes(b,true);}
+    if crate::building::is_chest(b) {return crate::building::chest_boxes(b, at, true);}
+    if crate::building::is_bed(b) {return crate::building::bed_boxes(b, true);}
     if is_fence(b) {
         let mut v = [[0.0f32; 6]; 5];
         v[0] = [0.375, 0.0, 0.375, 0.625, 1.0, 0.625];
@@ -571,6 +573,8 @@ pub fn is_light(b: Block) -> bool {
 pub fn tex_for(b: Block, face: usize) -> u32 {
     if crate::building::is_fence_gate(b) {return tex_for(if (b-crate::building::FENCE_GATE)&4!=0 {BIRCH_PLANKS} else {PLANKS},face);}
     if crate::building::is_sign(b) {return tex_for(PLANKS,face);}
+    if crate::building::is_chest(b) {return chest_layer(b, face);}
+    if crate::building::is_bed(b) {return bed_layer(b, face);}
 
     if let Some(m) = crate::farming::moisture(b) {
         return if face == 2 { if m > 0 { crate::textures::NEW_TEX as u32 + 3 } else { 50 } } else { 2 };
@@ -628,11 +632,6 @@ pub fn tex_for(b: Block, face: usize) -> u32 {
             _ => 26,
         },
         LAMP => LAMP_LAYER,
-        BED => match face {
-            2 => 28,
-            3 => 8,
-            _ => 29,
-        },
         TORCH => 30,
         BIRCH_LOG => {
             if face == 2 || face == 3 {
@@ -670,13 +669,6 @@ pub fn tex_for(b: Block, face: usize) -> u32 {
         FENCE => 8,
         BIRCH_FENCE => 44,
         b if is_lava(b) => LAVA_LAYER,
-        CHEST | LOOT_CHEST => {
-            if face == 2 || face == 3 {
-                CHEST_TOP_LAYER
-            } else {
-                CHEST_LAYER
-            }
-        }
         ICE => 57,
         RED_SAND => 58,
         TERRACOTTA => 59,
@@ -743,6 +735,62 @@ pub const CHEST_LAYER: u32 = crate::textures::EXTRA_BASE as u32;
 pub const CHEST_TOP_LAYER: u32 = CHEST_LAYER + 1;
 pub const LADDER_LAYER: u32 = CHEST_LAYER + 2;
 pub const TRAP_LAYER: u32 = CHEST_LAYER + 3;
+/// chest and bed textures (see `textures::FURNITURE_TEX`)
+const FURNITURE: u32 = crate::textures::FURNITURE_TEX as u32;
+pub const CHEST_LATCH_LAYER: u32 = FURNITURE + 6;
+pub const CHEST_ICON_LAYER: u32 = FURNITURE + 7;
+pub const BED_ICON_LAYER: u32 = FURNITURE + 17;
+
+/// A chest face. Faces along a double chest's width wear halves of one wide picture,
+/// so the outline runs round the whole chest and not through its middle. `b` is the
+/// state as shown (`building::chest_shown`). World-aligned texture coordinates: side
+/// faces run u along x (faces ±Z) or z (faces ±X); the top runs u along x, v along z.
+fn chest_layer(b: Block, face: usize) -> u32 {
+    use crate::building::{chest_facing, chest_join};
+    let (f, j) = (chest_facing(b), chest_join(b));
+    // the low half of a pair is the one joined towards +axis
+    let low = j == 1;
+    let along_x = f >= 2;
+    match face {
+        2 | 3 if j == 0 => CHEST_TOP_LAYER,
+        2 | 3 => FURNITURE + if along_x { 0 } else { 2 } + !low as u32,
+        _ if j == 0 => CHEST_LAYER,
+        // the faces across the width: front and back
+        0 | 1 if !along_x => FURNITURE + 4 + !low as u32,
+        4 | 5 if along_x => FURNITURE + 4 + !low as u32,
+        _ => CHEST_LAYER,
+    }
+}
+
+/// A bed face: blanket and pillow seen from above; the sides, which along the head
+/// half show where the blanket ends; legs and underside are planks (`part_layer`).
+fn bed_layer(b: Block, face: usize) -> u32 {
+    use crate::building::{bed_dir, bed_head};
+    let (d, head) = (bed_dir(b), bed_head(b));
+    let along_x = d < 2;
+    match face {
+        3 => 8,
+        2 if head => FURNITURE + 8 + d as u32,
+        2 => FURNITURE + 12,
+        _ if !head => FURNITURE + 16,
+        // the ends of the head half
+        0 | 1 if along_x => FURNITURE + 15,
+        4 | 5 if !along_x => FURNITURE + 15,
+        // the long sides: does the head lie towards +u?
+        _ => FURNITURE + 13 + (d & 1 == 0) as u32,
+    }
+}
+
+/// The layer of part `k` of a drawn shaped block: chest latches are iron, bed legs wood.
+fn part_layer(b: Block, k: usize, face: usize) -> u32 {
+    if k > 0 && crate::building::is_chest(b) {
+        CHEST_LATCH_LAYER
+    } else if k > 0 && crate::building::is_bed(b) {
+        8
+    } else {
+        tex_for(b, face)
+    }
+}
 
 // ---------------------------------------------------------------- hashing
 
@@ -1722,6 +1770,8 @@ fn mesh_cached(n:&[Arc<ChunkData>;9], cached:Option<Box<[Arc<[u8]>;9]>>)->MeshDa
                 }
                 if is_shaped(b) {
                     let side = |dx: i32, dz: i32| at(i + dx as isize * stride[0] + dz as isize * stride[2]);
+                    // a chest is drawn as it stands: alone, or half of a double chest
+                    let b = if crate::building::is_chest(b) { crate::building::chest_shown(b, side) } else { b };
                     let (boxes, n) = draw_boxes(b, side);
                     let up = sky_at(x, y + 1, z);
                     // light and neighbour for each face: 0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z
@@ -1755,7 +1805,7 @@ fn mesh_cached(n:&[Arc<ChunkData>;9], cached:Option<Box<[Arc<[u8]>;9]>>)->MeshDa
                                     continue;
                                 }
                                 let light = lighting.at(x, y, z).max(lighting.at(x + next[f].0, y + next[f].1, z + next[f].2));
-                                let tail = f as u32 | tex_for(b, f) << 3 | sky[f] << 19 | crate::lighting::brightness(light) << 21;
+                                let tail = f as u32 | part_layer(b, k, f) << 3 | sky[f] << 19 | crate::lighting::brightness(light) << 21;
                                 for (px, py, pz) in corners {
                                     detail.push(px | py << 9 | pz << 22);
                                     detail.push(tail);
@@ -2746,7 +2796,8 @@ mod tests {
 
     #[test]
     fn material_geometry_lighting_and_fluid_surfaces_are_stable() {
-        assert_eq!(mesh_fingerprint(&material_fixture()), 0x2ecb44ebf180e9af);
+        // (chests gained a latch box; without its quads the old golden 0x2ecb44ebf180e9af holds)
+        assert_eq!(mesh_fingerprint(&material_fixture()), 0xfbd30bf45fc27b8f);
     }
 
     #[test]
@@ -2946,9 +2997,10 @@ mod tests {
         let w = World::flat(|x, y, z| (y == 10 && z == 4 && x >= 2 && x % 2 == 0 && (x - 2) / 2 < 6).then(|| shapes[((x - 2) / 2) as usize]));
         let n = w.neighbours((0, 0)).unwrap();
         let m = mesh(&n);
-        // slab 6 faces - 1 hidden by the floor, top slab 6, stairs 2 boxes, fence post, chest, ...
+        // slab 6 faces - 1 hidden by the floor, top slab 6, stairs 2 boxes, fence post,
+        // chest body (5) and its latch (6)
         assert_eq!(m.detail.len() % 8, 0);
-        assert_eq!(m.detail.len() / 8, 5 + 6 + 11 + 11 + 5 + 5);
+        assert_eq!(m.detail.len() / 8, 5 + 6 + 11 + 11 + 5 + 11);
         assert!(m.top >= 11.0);
         // every vertex stays inside the chunk and names a real texture
         for v in m.detail.chunks_exact(2) {
@@ -2977,7 +3029,7 @@ mod tests {
         assert_eq!([roofed.sky_level(12, 10, 4), roofed.sky_level(7, 10, 4), roofed.sky_level(4, 10, 4)], [2, 1, 0]);
         assert!(!is_solid(LADDER_BASE + 2) && is_solid(TRAP_BASE) && !is_opaque(SLAB) && !is_opaque(STAIR_BASE + 31));
         for b in 0..=255u16 {
-            assert_eq!(is_shaped(b), b == PANE || is_slab(b) || is_fence(b) || b == CHEST || is_ladder(b) || is_trapdoor(b) || is_door(b) || is_stairs(b) || (TRAP_END..DOOR_BASE).contains(&b), "block {b}");
+            assert_eq!(is_shaped(b), b == PANE || is_slab(b) || is_fence(b) || b == CHEST || b == BED || is_ladder(b) || is_trapdoor(b) || is_door(b) || is_stairs(b) || (TRAP_END..DOOR_BASE).contains(&b), "block {b}");
         }
     }
 

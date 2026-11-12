@@ -63,6 +63,7 @@ impl super::Game {
             life: 6.0,
             hostile: false,
             fire: false,
+            snow: false,
             damage: 1 + (power * 5.0).round() as i32,
         });
         self.audio.play(Snd::Bow, 0.8, 0.85 + power * 0.25);
@@ -200,7 +201,7 @@ impl Game {
                     }
                     let b = self.world.get_block(p.x, p.y, p.z);
                     // (chests and furnaces are sturdy enough to keep what they hold)
-                    if is_fluid(b) || matches!(b, AIR | BEDROCK | CHEST | LOOT_CHEST | FURNACE) {
+                    if is_fluid(b) || matches!(b, AIR | BEDROCK | FURNACE) || building::is_chest(b) {
                         continue;
                     }
                     edits.push((p, AIR));
@@ -479,15 +480,41 @@ impl Game {
                         self.spill(at, items::SEEDS, seeds);
                     }
                     BERRY_BUSH => self.spill(at, drop, 2),
+                    SNOW => self.spill(at, drop, 4),
                     _ => self.spill(at, drop, 1),
                 }
                 if is_leaves(b) && self.rng.f() < 0.3 {
                     self.spill(at, items::STICK, 1);
                 }
+                // (Minecraft: one in two hundred oak leaves hides an apple)
+                if b == LEAVES && tool != items::SHEARS && self.rng.f() < 0.005 {
+                    self.spill(at, items::APPLE, 1);
+                }
                 if is_leaves(b) && tool != items::SHEARS && self.rng.f() < 0.06 {
                     self.spill(at, items::item_of(sapling_of(b)), 1);
                 }
-                if b == CHEST || b == LOOT_CHEST {
+                if building::is_chest(b) {
+                    // the other half of a double chest stands alone again
+                    if let Some((dx, dz)) = building::join_step(building::chest_facing(b), building::chest_join(b)) {
+                        let o = p + IVec3::new(dx, 0, dz);
+                        let other = self.world.get_block(o.x, o.y, o.z);
+                        if building::is_facing_chest(other) {
+                            let alone = building::chest_shown(other, |dx, dz| self.world.get_block(o.x + dx, o.y, o.z + dz));
+                            if alone != other {
+                                self.world.set_block(o.x, o.y, o.z, alone);
+                            }
+                        }
+                    }
+                }
+                if building::is_bed(b) {
+                    // the other half goes with it (one bed drops)
+                    if let Some((dx, dz)) = building::bed_other(b) {
+                        if building::is_bed(self.world.get_block(p.x + dx, p.y, p.z + dz)) {
+                            self.world.set_block(p.x + dx, p.y, p.z + dz, AIR);
+                        }
+                    }
+                }
+                if building::is_chest(b) {
                     // a broken chest spills what it held
                     let held =
                         if b == LOOT_CHEST { Some(loot::roll_chest(self.world.seed, p, self.world.is_deep())) } else { self.chests.remove(&p) };

@@ -156,9 +156,20 @@ unlocks the furnace, bed, iron tools, crystal pickaxe and crystal lamp, and a **
   let go to slide down. Monsters that walk into a ladder climb it too, though they do
   not look for one. A trapdoor opens and closes with a right click.
 - **Chests**: eight planks make a chest holding 27 stacks. Right click to open it;
-  Shift+click sends a stack across. Two adjacent chests join into a 54-slot large chest;
-  either half opens it. A third chest cannot join the pair. Leave room above the lid.
-  Breaking a half spills only that half's contents.
+  Shift+click sends a stack across. As in Minecraft, a chest faces you when placed (its
+  latch on the front), and a chest placed beside a single chest facing the same way joins
+  it into one wide 54-slot **large chest** with a single lid and a latch in the middle.
+  Clicking the side of a chest joins it and takes its facing; sneak while placing to keep
+  a chest single. A third chest in a row stays single. Either half opens a large chest.
+  Leave room above the lid. Breaking a half spills only that half's contents, and the
+  other half becomes a single chest again. Chests from older worlds face south and keep
+  their old pairs; they settle into the new form the first time they are opened.
+- **Beds**: three white (or red) wool over three planks, at a workbench, make a bed (the
+  old three planks and three hides still work). A bed is two blocks long and 9/16 of a
+  block high, as in Minecraft: the foot goes where you aim and the head one block further
+  in the direction you look, so both cells need room and a floor. Breaking either half
+  removes the whole bed and drops it once. Beds are always red here (Minecraft colours
+  them by their wool). One-block beds in older worlds stay as short beds.
 - **Survival**: you have health and hunger. Eat meat (cooked is far better) to stay fed;
   a full stomach heals you. Long falls, drowning, starving and wolf bites hurt. When you
   die, everything you carry and wear drops where you fell and you wake at your spawn
@@ -169,14 +180,29 @@ unlocks the furnace, bed, iron tools, crystal pickaxe and crystal lamp, and a **
 - **Day and night** take 12 minutes. Wolves spawn at night and hunt you; they are a
   little slower than your walk, and a bite costs one heart. Right click a bed
   to set your spawn point and, at night, sleep until morning.
+- **Food and farming extras**: oak leaves now and then hide an **apple** (one in two
+  hundred, as in Minecraft). Eight gold ingots round an apple make a **golden apple**,
+  which can be eaten even when full and restores two hearts at once (Minecraft gives the
+  same healing over a few seconds). Eight gold nuggets round a carrot make a **golden
+  carrot**. **Forest stew** is now made at a workbench in a **bowl** (three planks make
+  four), and you keep the bowl. Zombies drop **rotten flesh**: it feeds you, but four
+  times in five it leaves you queasy and costs a point of hunger back (Minecraft's Hunger
+  effect, in short). A bone grinds into three **bone meal**: right click a crop to ripen
+  it a stage or two, a sapling for a 45% chance to grow its tree at once, or grass to
+  sprout tufts and flowers around. Bone meal also makes white dye.
+- **Nuggets and snow**: an iron or gold ingot breaks into nine nuggets, and nine make an
+  ingot again at a workbench. Old iron and gold tools and armour melt down in a furnace
+  into a nugget. Snow dug with a shovel gives four **snowballs** (with anything else it
+  gives nothing); four snowballs pack back into snow. Right click to throw one: it knocks
+  creatures back but does no harm. Snowballs stack to 16.
 - **Monsters** come out at night in places with no block light, and are gone
   by morning: sunlight burns zombies and skeletons, and the rest slip away once out of
   sight. Sneaking shortens the distance at which they notice you. Hunters find their way
   to you: round walls, through doorways and open doors, up steps and down into pits and
   caves. Walls with a closed door keep them out; spiders and slimes are too wide for the
   gap an open door leaves, but spiders climb.
-  - **Zombies** shamble at you in ones and twos and hit hard. They drop cloth and, now
-    and then, an iron ingot.
+  - **Zombies** shamble at you in ones and twos and hit hard. They drop rotten flesh
+    and, now and then, an iron ingot.
   - **Skeletons** keep their distance and shoot arrows; break their line of sight or
     close in. They drop arrows and sometimes flint.
   - **Giant spiders** are fast, climb walls and pounce. They drop plant fibre.

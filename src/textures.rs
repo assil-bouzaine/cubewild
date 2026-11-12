@@ -18,7 +18,12 @@ pub const DOOR_TEX: usize = SHAPE_ICONS + 6;
 /// the player's arm in first person: skin, then sleeve
 pub const ARM_TEX: usize = DOOR_TEX + 8;
 pub const NEW_TEX: usize = ARM_TEX + 2;
-pub const LAYERS: usize = NEW_TEX + 15;
+/// chest halves, the latch, beds, and the chest and bed icons (see `furniture_pixel`)
+pub const FURNITURE_TEX: usize = NEW_TEX + 15;
+/// icons of the items added after the furniture (see `items::icon`)
+pub const MORE_ICONS: usize = FURNITURE_TEX + 18;
+pub const MORE_ICON_COUNT: usize = 64;
+pub const LAYERS: usize = MORE_ICONS + MORE_ICON_COUNT;
 /// icons of the pyre ingot and the eight pieces of pyre gear (`items::PYRE_INGOT` + n),
 /// in the original spare layers below the item icons
 pub const PYRE_ICONS: usize = EXTRA_TEX + 4;
@@ -514,6 +519,8 @@ fn pixel(layer: usize, x: i32, y: i32) -> [u8; 4] {
                 }
             }
         }
+        l if l >= MORE_ICONS => crate::icons::pixel(l - MORE_ICONS, x, y),
+        l if l >= FURNITURE_TEX => furniture_pixel(l - FURNITURE_TEX, x, y),
         l if l >= NEW_TEX => {
             let k = l - NEW_TEX;
             match k {
@@ -630,32 +637,120 @@ fn biome_pixel(layer: usize, x: i32, y: i32) -> [u8; 4] {
     }
 }
 
+/// A chest's side: boards with a dark rim and the lid seam. A chest is drawn a pixel
+/// narrower than its cell on each side and two pixels short of its top, so the rim
+/// lies one pixel in. `lo`/`hi`: draw the rim at the low/high end of u (a double
+/// chest's halves leave it out where they meet).
+fn chest_side(x: i32, y: i32, lo: bool, hi: bool) -> [u8; 4] {
+    let n = h(700, x, y);
+    if (lo && x <= 1) || (hi && x >= 14) || y <= 2 || y >= 15 {
+        shade([112.0, 80.0, 44.0], 0.9 + n * 0.1)
+    } else if y == 6 {
+        shade([112.0, 80.0, 44.0], 0.7)
+    } else {
+        shade([164.0, 118.0, 62.0], 0.9 + h(700, x / 4, 0) * 0.12 + n * 0.06)
+    }
+}
+/// A chest's lid from above; `rim` = [low x, high x, low z, high z].
+fn chest_lid(x: i32, y: i32, rim: [bool; 4]) -> [u8; 4] {
+    let n = h(701, x, y);
+    if (rim[0] && x <= 1) || (rim[1] && x >= 14) || (rim[2] && y <= 1) || (rim[3] && y >= 14) {
+        shade([112.0, 80.0, 44.0], 0.9 + n * 0.1)
+    } else {
+        shade([164.0, 118.0, 62.0], 0.92 + h(701, 0, y / 4) * 0.12 + n * 0.06)
+    }
+}
+
+const BLANKET: [f32; 3] = [168.0, 42.0, 38.0];
+const SHEET: [f32; 3] = [232.0, 232.0, 226.0];
+/// One row of a bed's side (rows 7..=12 show: the mattress stands 3..9 sixteenths high).
+/// `cover`: the blanket reaches this column.
+fn bed_side(x: i32, y: i32, cover: bool) -> [u8; 4] {
+    let n = h(720, x, y);
+    let y = y.clamp(7, 12);
+    if y == 12 {
+        shade(SHEET, 0.74 + n * 0.05)
+    } else if cover && y <= 10 {
+        shade(BLANKET, if y == 10 { 0.78 } else { 0.92 + n * 0.08 })
+    } else {
+        shade(SHEET, 0.92 + n * 0.05)
+    }
+}
+
+/// Chest halves, the latch and beds; then the chest and bed icons.
+fn furniture_pixel(k: usize, x: i32, y: i32) -> [u8; 4] {
+    match k {
+        // double chest lids: the low and high halves along x, then along z
+        0 => chest_lid(x, y, [true, false, true, true]),
+        1 => chest_lid(x, y, [false, true, true, true]),
+        2 => chest_lid(x, y, [true, true, true, false]),
+        3 => chest_lid(x, y, [true, true, false, true]),
+        // the front and back of double chest halves
+        4 => chest_side(x, y, true, false),
+        5 => chest_side(x, y, false, true),
+        // the latch: polished iron
+        6 => shade([196.0, 198.0, 206.0], 0.9 + h(706, x, y) * 0.12),
+        // the chest's icon: its front with the latch
+        7 => {
+            if matches!(x, 7 | 8) && matches!(y, 5..=8) {
+                [196, 198, 206, 255]
+            } else {
+                chest_side(x, y, true, true)
+            }
+        }
+        // the top of a bed's head half, its head towards -x, +x, -z, +z: the blanket
+        // turned down over the sheet, then the pillow
+        8..=11 => {
+            // t runs from the middle of the bed (0) to its head end (15), s across
+            let (t, s) = match k - 8 {
+                0 => (15 - x, y),
+                1 => (x, y),
+                2 => (15 - y, x),
+                _ => (y, x),
+            };
+            let n = h(721, x, y);
+            if t <= 3 {
+                shade(BLANKET, if t == 3 { 0.8 } else { 0.92 + n * 0.08 })
+            } else if t == 4 {
+                shade(SHEET, 1.02)
+            } else if (7..=14).contains(&t) && (2..=13).contains(&s) {
+                let rim = t == 7 || t == 14 || s == 2 || s == 13;
+                shade([246.0, 246.0, 242.0], if rim { 0.86 } else { 0.97 + n * 0.03 })
+            } else {
+                shade(SHEET, 0.9 + n * 0.05)
+            }
+        }
+        // the top of the foot half: all blanket, folds across it
+        12 => shade(BLANKET, 0.9 + h(722, x, y) * 0.06 + if (x + y) % 7 == 0 { 0.05 } else { 0.0 }),
+        // the long sides of the head half, the head towards +u, then towards -u
+        13 => bed_side(x, y, x <= 3),
+        14 => bed_side(x, y, x >= 12),
+        // the head end and the foot half's sides
+        15 => bed_side(x, y, false),
+        16 => bed_side(x, y, true),
+        // the bed's icon: a bed from the side, pillow at the left
+        _ => {
+            let wood = [150.0, 108.0, 60.0];
+            match y {
+                6..=7 if (1..=4).contains(&x) => shade([246.0, 246.0, 242.0], 0.95),
+                8..=9 if (5..=15).contains(&x) => shade(BLANKET, if y == 8 { 1.0 } else { 0.85 }),
+                8..=9 => shade(SHEET, if y == 8 { 1.0 } else { 0.9 }),
+                10 => shade(SHEET, 0.8),
+                11..=12 if x <= 1 || x >= 14 => shade(wood, 0.9),
+                _ => CLEAR,
+            }
+        }
+    }
+}
+
 /// Chest, ladder and trapdoor textures, and the icons of slabs and fences.
 fn extra_pixel(k: usize, x: i32, y: i32) -> [u8; 4] {
     let n = h(700 + k as u32, x, y);
     let wood = [178.0, 140.0, 86.0];
     match k {
-        0 => {
-            // chest side: boards, a lid seam and an iron latch
-            // (the chest is drawn a pixel narrower than its cell and two shorter)
-            if matches!(x, 7 | 8) && matches!(y, 5..=8) {
-                [196, 198, 206, 255]
-            } else if x <= 1 || x >= 14 || y <= 2 || y >= 15 {
-                shade([112.0, 80.0, 44.0], 0.9 + n * 0.1)
-            } else if y == 6 {
-                shade([112.0, 80.0, 44.0], 0.7)
-            } else {
-                shade([164.0, 118.0, 62.0], 0.9 + h(700, x / 4, 0) * 0.12 + n * 0.06)
-            }
-        }
-        1 => {
-            // chest lid
-            if x <= 1 || x >= 14 || y <= 1 || y >= 14 {
-                shade([112.0, 80.0, 44.0], 0.9 + n * 0.1)
-            } else {
-                shade([164.0, 118.0, 62.0], 0.92 + h(701, 0, y / 4) * 0.12 + n * 0.06)
-            }
-        }
+        // chest side and lid: a single chest's (the latch is a box of its own)
+        0 => chest_side(x, y, true, true),
+        1 => chest_lid(x, y, [true; 4]),
         2 => {
             // ladder: two rails and four rungs
             if matches!(x, 2 | 3 | 12 | 13) {

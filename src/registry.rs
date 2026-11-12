@@ -17,6 +17,8 @@ pub const FAMILIES: &[(Block, Block, &str)] = &[
     (304, 307, "signs"),
     (320, 327, "additional slabs"),
     (352, 383, "additional stairs"),
+    (384, 395, "facing and double chests"),
+    (400, 407, "two-block beds"),
 ];
 pub fn valid(block: Block) -> bool {
     FAMILIES.iter().any(|&(first, last, _)| (first..=last).contains(&block))

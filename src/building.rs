@@ -66,20 +66,200 @@ pub fn sign_boxes(b: Block) -> Boxes {
     (v, 2)
 }
 
-fn adjacent(w: &World, p: IVec3) -> Vec<IVec3> {
-    SIDE_DIR.iter().map(|&(x, z)| p + IVec3::new(x, 0, z)).filter(|p| w.get_block(p.x, p.y, p.z) == CHEST).collect()
+// ---------------------------------------------------------------- chests
+//
+// As in Minecraft, a chest faces the player who placed it and joins a single chest beside
+// it that faces the same way, unless the player sneaks. The pairing is stored in the
+// state, so a row of chests never becomes ambiguous. A half whose partner is gone or
+// mismatched (an explosion, an old save) simply stands as a single chest.
+
+/// bits 0-1 the side the front (latch) faces (see `SIDE_DIR`), bits 2-3 how it joins:
+/// 0 single, 1 to the chest one step along +axis, 2 to the one along -axis. The axis is
+/// the chest's width: X for chests facing ±Z, Z for chests facing ±X.
+pub const CHESTS: Block = 384;
+/// Old chests (and cave/village loot chests) have no facing: they stand facing +Z.
+const OLD_CHEST_FACING: u8 = 3;
+pub fn is_facing_chest(b: Block) -> bool {
+    (CHESTS..CHESTS + 12).contains(&b)
+}
+/// Any chest block, including old and loot chests.
+pub fn is_chest(b: Block) -> bool {
+    b == CHEST || b == LOOT_CHEST || is_facing_chest(b)
+}
+pub fn chest(facing: u8, join: u8) -> Block {
+    CHESTS + facing as Block + join as Block * 4
+}
+pub fn chest_facing(b: Block) -> u8 {
+    if is_facing_chest(b) { ((b - CHESTS) & 3) as u8 } else { OLD_CHEST_FACING }
+}
+pub fn chest_join(b: Block) -> u8 {
+    if is_facing_chest(b) { ((b - CHESTS) >> 2) as u8 } else { 0 }
+}
+/// The step from a chest half to the other half its state names.
+pub fn join_step(facing: u8, join: u8) -> Option<(i32, i32)> {
+    let s = match join {
+        1 => 1,
+        2 => -1,
+        _ => return None,
+    };
+    Some(if facing < 2 { (0, s) } else { (s, 0) })
+}
+/// The chest as it stands: a half whose partner does not answer it shows as a single
+/// chest, and old chests show as single chests facing +Z. `at` reads its level by offset.
+pub fn chest_shown(b: Block, at: impl Fn(i32, i32) -> Block) -> Block {
+    let (f, j) = (chest_facing(b), chest_join(b));
+    if let Some((dx, dz)) = join_step(f, j) {
+        let o = at(dx, dz);
+        if is_facing_chest(o) && chest_facing(o) == f && chest_join(o) == 3 - j {
+            return b;
+        }
+    }
+    chest(f, 0)
+}
+/// The boxes of a chest: one body (two halves of a double chest meet flush, so they read
+/// as one wide chest), and when drawn, the latch on its front. A double chest has one
+/// latch in the middle, drawn by the half on the low side.
+pub fn chest_boxes(b: Block, at: impl Fn(i32, i32) -> Block, drawing: bool) -> Boxes {
+    const P: f32 = 1.0 / 16.0;
+    let b = chest_shown(b, at);
+    let (f, j) = (chest_facing(b), chest_join(b));
+    // width along `a`, depth along `d`
+    let make = |a0: f32, a1: f32, d0: f32, d1: f32, y0: f32, y1: f32| if f >= 2 { [a0, y0, d0, a1, y1, d1] } else { [d0, y0, a0, d1, y1, a1] };
+    let mut v = [[0.0f32; 6]; 5];
+    let a0 = if j == 2 { 0.0 } else { P };
+    let a1 = if j == 1 { 1.0 } else { 15.0 * P };
+    v[0] = make(a0, a1, P, 15.0 * P, 0.0, 14.0 * P);
+    if !drawing || j == 2 {
+        return (v, 1);
+    }
+    let (l0, l1) = if j == 1 { (15.0 * P, 17.0 * P) } else { (7.0 * P, 9.0 * P) };
+    let (d0, d1) = if f & 1 == 1 { (15.0 * P, 1.0) } else { (0.0, P) };
+    v[1] = make(l0, l1, d0, d1, 7.0 * P, 11.0 * P);
+    (v, 2)
+}
+/// The state for a chest placed at `p` facing `facing`. Unless `alone` (sneaking), it
+/// joins the single chest it was placed against (taking its facing), or else a single
+/// chest beside it facing the same way. Returns the state and the partner to rewrite.
+pub fn placed_chest(w: &World, p: IVec3, facing: u8, clicked: Option<IVec3>, alone: bool) -> (Block, Option<(IVec3, Block)>) {
+    let single = |q: IVec3| {
+        let b = w.get_block(q.x, q.y, q.z);
+        (b == CHEST || is_facing_chest(b)) && chest_join(chest_shown(b, |dx, dz| w.get_block(q.x + dx, q.y, q.z + dz))) == 0
+    };
+    if alone {
+        return (chest(facing, 0), None);
+    }
+    let try_join = |f: u8, q: IVec3| -> Option<(Block, Option<(IVec3, Block)>)> {
+        let step = q - p;
+        if step.y != 0 || !single(q) || chest_facing(w.get_block(q.x, q.y, q.z)) != f {
+            return None;
+        }
+        // the partner has to lie along the chest's width
+        let j = [1u8, 2].into_iter().find(|&j| join_step(f, j) == Some((step.x, step.z)))?;
+        Some((chest(f, j), Some((q, chest(f, 3 - j)))))
+    };
+    if let Some(q) = clicked {
+        if q.y == p.y {
+            let f = chest_facing(w.get_block(q.x, q.y, q.z));
+            if let Some(r) = try_join(f, q) {
+                return r;
+            }
+        }
+    }
+    for j in [1u8, 2] {
+        let (dx, dz) = join_step(facing, j).unwrap();
+        if let Some(r) = try_join(facing, p + IVec3::new(dx, 0, dz)) {
+            return r;
+        }
+    }
+    (chest(facing, 0), None)
+}
+/// Gives an old facingless chest a state: two old chests that only had each other
+/// become one double chest (as the old rules paired them), any other one a single chest.
+pub fn upgrade_old_chest(w: &mut World, p: IVec3) {
+    if w.get_block(p.x, p.y, p.z) != CHEST {
+        return;
+    }
+    let old = |w: &World, p: IVec3| -> Vec<IVec3> {
+        SIDE_DIR.iter().map(|&(x, z)| p + IVec3::new(x, 0, z)).filter(|q| w.get_block(q.x, q.y, q.z) == CHEST).collect()
+    };
+    let n = old(w, p);
+    if n.len() == 1 && old(w, n[0]).len() == 1 {
+        let q = n[0];
+        let step = q - p;
+        // the old double chest stretched along its pair; it faces off that line
+        let f = if step.x != 0 { OLD_CHEST_FACING } else { 1 };
+        let j = [1u8, 2].into_iter().find(|&j| join_step(f, j) == Some((step.x, step.z))).unwrap();
+        w.set_block(p.x, p.y, p.z, chest(f, j));
+        w.set_block(q.x, q.y, q.z, chest(f, 3 - j));
+    } else {
+        w.set_block(p.x, p.y, p.z, chest(OLD_CHEST_FACING, 0));
+    }
 }
 pub fn chest_pair(w: &World, p: IVec3) -> Option<IVec3> {
-    if w.get_block(p.x, p.y, p.z) != CHEST {
+    let b = w.get_block(p.x, p.y, p.z);
+    if !is_facing_chest(b) {
         return None;
     }
-    let n = adjacent(w, p);
-    if n.len() == 1 && adjacent(w, n[0]).len() == 1 { Some(n[0]) } else { None }
+    let s = chest_shown(b, |dx, dz| w.get_block(p.x + dx, p.y, p.z + dz));
+    join_step(chest_facing(s), chest_join(s)).map(|(dx, dz)| p + IVec3::new(dx, 0, dz))
 }
-pub fn can_place_chest(w: &World, p: IVec3) -> bool {
-    let n = adjacent(w, p);
-    n.len() <= 1 && n.iter().all(|&q| adjacent(w, q).is_empty())
+
+// ---------------------------------------------------------------- beds
+//
+// A bed is two blocks long and 9/16 of a block high, like Minecraft's: the foot where the
+// player aims and the head one step further on, along the way they look.
+
+/// bits 0-1 the side the head lies on from the foot (see `SIDE_DIR`), bit 2 the head half
+pub const BEDS: Block = 400;
+pub const BED_HEAD: Block = 4;
+pub const BED_TOP: f32 = 9.0 / 16.0;
+/// Old one-block beds stay where they are, drawn as a short bed with its head to +Z.
+pub fn is_bed(b: Block) -> bool {
+    b == BED || (BEDS..BEDS + 8).contains(&b)
 }
+pub fn bed(dir: u8, head: bool) -> Block {
+    BEDS + dir as Block + if head { BED_HEAD } else { 0 }
+}
+pub fn bed_dir(b: Block) -> u8 {
+    if b == BED { 3 } else { ((b - BEDS) & 3) as u8 }
+}
+pub fn bed_head(b: Block) -> bool {
+    b == BED || (b - BEDS) & BED_HEAD != 0
+}
+/// The step to the bed's other half (an old one-block bed has none).
+pub fn bed_other(b: Block) -> Option<(i32, i32)> {
+    if !is_bed(b) || b == BED {
+        return None;
+    }
+    let (dx, dz) = SIDE_DIR[bed_dir(b) as usize];
+    Some(if bed_head(b) { (-dx, -dz) } else { (dx, dz) })
+}
+/// A mattress on short legs at its outer end (both ends for an old one-block bed).
+pub fn bed_boxes(b: Block, drawing: bool) -> Boxes {
+    const P: f32 = 1.0 / 16.0;
+    let mut v = [[0.0f32; 6]; 5];
+    v[0] = [0.0, if drawing { 3.0 * P } else { 0.0 }, 0.0, 1.0, BED_TOP, 1.0];
+    if !drawing {
+        return (v, 1);
+    }
+    let end = if bed_head(b) { bed_dir(b) } else { bed_dir(b) ^ 1 };
+    let mut n = 1;
+    for (cx, cz) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+        let on_end = match end {
+            0 => cx == 0,
+            1 => cx == 1,
+            2 => cz == 0,
+            _ => cz == 1,
+        };
+        if on_end || b == BED {
+            let (x0, z0) = (if cx == 0 { 0.0 } else { 13.0 * P }, if cz == 0 { 0.0 } else { 13.0 * P });
+            v[n] = [x0, 0.0, z0, x0 + 3.0 * P, 3.0 * P, z0 + 3.0 * P];
+            n += 1;
+        }
+    }
+    (v, n)
+}
+
 pub fn chest_halves(w: &World, p: IVec3) -> Vec<IVec3> {
     let mut positions = vec![p];
     if let Some(q) = chest_pair(w, p) {
@@ -138,16 +318,105 @@ impl super::Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn floor() -> World {
+        World::flat(|_, _, _| None)
+    }
+    fn place(w: &mut World, p: IVec3, facing: u8, clicked: Option<IVec3>, alone: bool) -> Block {
+        let (b, partner) = placed_chest(w, p, facing, clicked, alone);
+        w.set_block(p.x, p.y, p.z, b);
+        if let Some((o, ob)) = partner {
+            w.set_block(o.x, o.y, o.z, ob);
+        }
+        b
+    }
     #[test]
-    fn pairing_is_symmetric_and_cannot_make_a_triple_chest() {
-        let mut w = World::flat(|x, y, z| (y == 10 && z == 0 && (x == 0 || x == 1)).then_some(CHEST));
-        let a = IVec3::new(0, 10, 0);
-        let b = IVec3::new(1, 10, 0);
+    fn chests_join_side_by_side_like_minecraft_and_a_third_stays_single() {
+        let mut w = floor();
+        let (a, b, c) = (IVec3::new(0, 10, 0), IVec3::new(1, 10, 0), IVec3::new(2, 10, 0));
+        // facing -Z (side 2): the width runs along x
+        place(&mut w, a, 2, None, false);
+        place(&mut w, b, 2, None, false);
         assert_eq!(chest_pair(&w, a), Some(b));
+        assert_eq!(chest_pair(&w, b), Some(a));
         assert_eq!(chest_halves(&w, a), chest_halves(&w, b));
-        assert!(!can_place_chest(&w, IVec3::new(2, 10, 0)));
-        w.set_block(0, 10, 0, AIR);
+        // a third chest in the row is allowed and stands alone
+        assert_eq!(chest_join(place(&mut w, c, 2, None, false)), 0);
+        assert_eq!(chest_pair(&w, b), Some(a));
+        assert_eq!(chest_halves(&w, c), vec![c]);
+        // a chest facing another way, or placed sneaking, does not join
+        let d = IVec3::new(0, 10, 5);
+        place(&mut w, d, 2, None, false);
+        assert_eq!(chest_join(place(&mut w, IVec3::new(1, 10, 5), 0, None, false)), 0);
+        assert_eq!(chest_join(place(&mut w, IVec3::new(-1, 10, 5), 2, None, true)), 0);
+        // chests in front of each other never join
+        assert_eq!(chest_join(place(&mut w, IVec3::new(0, 10, 6), 2, None, false)), 0);
+        // clicking the side of a single chest joins it, taking its facing
+        let e = IVec3::new(5, 10, 9);
+        place(&mut w, e, 1, None, false);
+        let f = place(&mut w, e + IVec3::Z, 3, Some(e), false);
+        assert_eq!((chest_facing(f), chest_pair(&w, e + IVec3::Z)), (1, Some(e)));
+        // a broken half leaves the other standing as a single chest
+        w.set_block(a.x, a.y, a.z, AIR);
         assert_eq!(chest_pair(&w, b), None);
+        assert_eq!(chest_halves(&w, b), vec![b]);
+        let shown = chest_shown(w.get_block(1, 10, 0), |dx, dz| w.get_block(1 + dx, 10, dz));
+        assert_eq!(chest_join(shown), 0);
+        // and a new chest there can join it again
+        place(&mut w, a, 2, None, false);
+        assert_eq!(chest_pair(&w, a), Some(b));
+    }
+    #[test]
+    fn old_chests_keep_their_pairs_when_upgraded() {
+        let mut w = World::flat(|x, y, z| (y == 10 && ((z == 0 && (x == 0 || x == 1)) || (x == 5 && z == 5))).then_some(CHEST));
+        upgrade_old_chest(&mut w, IVec3::new(1, 10, 0));
+        assert_eq!(chest_pair(&w, IVec3::new(0, 10, 0)), Some(IVec3::new(1, 10, 0)));
+        upgrade_old_chest(&mut w, IVec3::new(5, 10, 5));
+        assert_eq!(w.get_block(5, 10, 5), chest(OLD_CHEST_FACING, 0));
+        // old pairs along z face +X
+        let mut w = World::flat(|x, y, z| (y == 10 && x == 0 && (z == 0 || z == 1)).then_some(CHEST));
+        upgrade_old_chest(&mut w, IVec3::new(0, 10, 0));
+        assert_eq!(chest_facing(w.get_block(0, 10, 1)), 1);
+        assert_eq!(chest_pair(&w, IVec3::new(0, 10, 1)), Some(IVec3::new(0, 10, 0)));
+    }
+    #[test]
+    fn double_chests_meet_flush_with_one_latch_in_the_middle() {
+        let (lo, hi) = (chest(2, 1), chest(2, 2));
+        let (lo_at, hi_at) = (|dx: i32, _| if dx == 1 { chest(2, 2) } else { AIR }, |dx: i32, _| if dx == -1 { chest(2, 1) } else { AIR });
+        let (a, an) = chest_boxes(lo, lo_at, true);
+        let (b, bn) = chest_boxes(hi, hi_at, true);
+        assert_eq!((an, bn), (2, 1));
+        assert_eq!((a[0][3], b[0][0]), (1.0, 0.0));
+        // the latch straddles the seam, on the front (-Z)
+        assert_eq!((a[1][0], a[1][3], a[1][2]), (15.0 / 16.0, 17.0 / 16.0, 0.0));
+        // collision is the same body without the latch
+        assert_eq!(chest_boxes(lo, lo_at, false).1, 1);
+        // a half with no partner is drawn as a single chest, latch in the middle
+        let (s, sn) = chest_boxes(lo, |_, _| AIR, true);
+        assert_eq!((sn, s[0][3], s[1][0]), (2, 15.0 / 16.0, 7.0 / 16.0));
+    }
+    #[test]
+    fn beds_are_two_blocks_long_and_nine_sixteenths_high() {
+        for dir in 0..4u8 {
+            let (foot, head) = (bed(dir, false), bed(dir, true));
+            let (fx, fz) = bed_other(foot).unwrap();
+            let (hx, hz) = bed_other(head).unwrap();
+            assert_eq!((fx, fz), SIDE_DIR[dir as usize]);
+            assert_eq!((fx + hx, fz + hz), (0, 0));
+            assert!(crate::registry::valid(foot) && crate::registry::valid(head) && is_shaped(foot) && is_solid(head));
+            let (v, n) = bed_boxes(foot, false);
+            assert_eq!((n, v[0][4]), (1, BED_TOP));
+            // a mattress and two legs at its outer end
+            assert_eq!(bed_boxes(head, true).1, 3);
+            assert_eq!(crate::items::item_of(head), BED);
+        }
+        assert_eq!(bed_other(BED), None);
+        assert_eq!(bed_boxes(BED, true).1, 5);
+        for f in 0..4 {
+            for j in 0..3 {
+                assert!(crate::registry::valid(chest(f, j)) && is_chest(chest(f, j)));
+                assert_eq!(crate::items::item_of(chest(f, j)), CHEST);
+            }
+        }
     }
     #[test]
     fn open_gates_allow_passage_and_signs_round_trip() {
@@ -321,14 +590,17 @@ impl Game {
         // use the block you are looking at
         if let Some((p, _, _)) = target {
             match self.world.get_block(p.x, p.y, p.z) {
-                b @ (CHEST | LOOT_CHEST) if !sneak => {
+                b if building::is_chest(b) && !sneak => {
                     self.chest_at = p;
                     if b == LOOT_CHEST {
                         // found in a cave and opened for the first time: from now on an
                         // ordinary chest holding what was left in it
                         self.chests.insert(p, loot::roll_chest(self.world.seed, p, self.world.is_deep()));
-                        self.world.set_block(p.x, p.y, p.z, CHEST);
+                        self.world.set_block(p.x, p.y, p.z, building::chest(building::chest_facing(b), 0));
                         self.say("You found a chest".into());
+                    } else if b == CHEST {
+                        // a chest from an older world takes a facing (and its old partner)
+                        building::upgrade_old_chest(&mut self.world, p);
                     }
                     self.chests.entry(p).or_insert([Stack::default(); items::CHEST_SLOTS]);
                     let halves = building::chest_halves(&self.world, p);
@@ -366,15 +638,20 @@ impl Game {
                     }
                     return;
                 }
-                BED if self.world.is_deep() => {
+                b if building::is_bed(b) && self.world.is_deep() => {
                     // no sleeping down here
                     self.place_cd = 0.6;
                     self.world.set_block(p.x, p.y, p.z, AIR);
+                    if let Some((dx, dz)) = building::bed_other(b) {
+                        if building::is_bed(self.world.get_block(p.x + dx, p.y, p.z + dz)) {
+                            self.world.set_block(p.x + dx, p.y, p.z + dz, AIR);
+                        }
+                    }
                     self.explode(p.as_vec3() + 0.5, 3.0);
                     self.say("Beds don't work in the Emberdeep".into());
                     return;
                 }
-                BED => {
+                b if building::is_bed(b) => {
                     self.place_cd = 0.6;
                     self.spawn = p.as_vec3() + Vec3::new(0.5, 1.01, 0.5);
                     if self.sun().1 < 0.35 {
@@ -416,13 +693,29 @@ impl Game {
         }
         let bite = items::food(item);
         if bite > 0.0 {
-            if self.food < MAX_FOOD - 0.5 {
+            // a golden apple can be eaten at any time, as in Minecraft
+            if self.food < MAX_FOOD - 0.5 || item == items::GOLDEN_APPLE {
                 self.spend();
                 self.food = (self.food + bite).min(MAX_FOOD);
                 self.place_cd = 0.4;
                 let pitch = 0.9 + self.rng.f() * 0.2;
                 self.audio.play(Snd::Eat, 0.7, pitch);
-                self.say(format!("Ate {}", items::name(item)));
+                match item {
+                    // (Minecraft's few seconds of regeneration, given at once)
+                    items::GOLDEN_APPLE => {
+                        self.health = (self.health + 4.0).min(MAX_HEALTH);
+                        self.say("Ate a Golden Apple. You feel restored".into());
+                    }
+                    // (Minecraft's Hunger effect, as the hunger it would cost)
+                    items::ROTTEN_FLESH if self.rng.f() < 0.8 => {
+                        self.food = (self.food - 1.0).max(0.0);
+                        self.say("The flesh was rotten. You feel queasy".into());
+                    }
+                    _ => self.say(format!("Ate {}", items::name(item))),
+                }
+                if item == items::STEW {
+                    self.give(items::BOWL, 1);
+                }
             }
             return;
         }
@@ -545,6 +838,18 @@ impl Game {
                 return;
             }
             items::SHIELD => return,
+            items::SNOWBALL => {
+                self.throw_snowball();
+                return;
+            }
+            items::BONE_MEAL => {
+                if let Some((p, _, _)) = target {
+                    if self.bone_meal(p) {
+                        self.spend();
+                    }
+                }
+                return;
+            }
             items::BOW => {
                 if self.combat.bow.is_none() {
                     self.combat.bow = Some((self.sel, 0.0));
@@ -610,6 +915,27 @@ impl Game {
                     (q, building::slab(mat, high))
                 }
             }
+            CHEST => {
+                let clicked_at = (n.y == 0 && building::is_chest(clicked)).then_some(p);
+                let (state, partner) = building::placed_chest(&self.world, q, (facing ^ 1) as u8, clicked_at, sneak);
+                let cur = self.world.get_block(q.x, q.y, q.z);
+                if !is_replaceable(cur) || !self.fits(q, state) {
+                    return;
+                }
+                if self.world.set_block(q.x, q.y, q.z, state) {
+                    if let Some((o, b)) = partner {
+                        self.world.set_block(o.x, o.y, o.z, b);
+                    }
+                    self.spend();
+                    self.weather.dirty();
+                    self.audio.play_var(Snd::Place(audio::surface(state)), q.as_vec3() + 0.5, 0.8);
+                }
+                return;
+            }
+            BED => {
+                self.place_bed(q, facing as u8);
+                return;
+            }
             i if items::is_sapling_item(i) => {
                 let soil = clicked == DIRT || clicked == FARMLAND || is_grassy(clicked);
                 if n.y != 1 || !soil {
@@ -621,10 +947,6 @@ impl Game {
             i if items::is_block(i) => (q, items::block_of(i)),
             _ => return,
         };
-        if block == CHEST && !building::can_place_chest(&self.world, at) {
-            self.say("A double chest can have only two halves".into());
-            return;
-        }
         let cur = self.world.get_block(at.x, at.y, at.z);
         // (a slab is only ever replaced by the full block its second half makes)
         let joins = is_slab(cur) && items::slab_material(item).is_some() && block == SHAPE_FULL[slab_mat(cur) as usize];
@@ -644,6 +966,85 @@ impl Game {
             self.weather.dirty();
             self.audio.play_var(Snd::Place(audio::surface(block)), at.as_vec3() + 0.5, 0.8);
         }
+    }
+
+    /// The foot goes where the player aims, the head one step further the way they look.
+    pub(super) fn place_bed(&mut self, foot: IVec3, dir: u8) {
+        let (dx, dz) = SIDE_DIR[dir as usize];
+        let head = foot + IVec3::new(dx, 0, dz);
+        let w = &self.world;
+        let room = |c: IVec3| is_replaceable(w.get_block(c.x, c.y, c.z)) && is_solid(w.get_block(c.x, c.y - 1, c.z));
+        if !w.is_loaded(head.x, head.z) || !room(foot) || !room(head) {
+            self.say("A bed needs two blocks of firm floor".into());
+            return;
+        }
+        let (fb, hb) = (building::bed(dir, false), building::bed(dir, true));
+        if !self.fits(foot, fb) || !self.fits(head, hb) {
+            return;
+        }
+        if self.world.set_block(foot.x, foot.y, foot.z, fb) {
+            self.world.set_block(head.x, head.y, head.z, hb);
+            self.spend();
+            self.audio.play_var(Snd::Place(audio::surface(fb)), foot.as_vec3() + 0.5, 0.8);
+        }
+    }
+
+    /// Bone meal on a crop ripens it a stage or two, on a sapling may grow its tree at
+    /// once, and on grass sprouts tufts and flowers around. True if it was used.
+    pub(super) fn bone_meal(&mut self, p: IVec3) -> bool {
+        let b = self.world.get_block(p.x, p.y, p.z);
+        let used = if let Some((_, stage)) = farming::crop(b) {
+            if stage >= 3 {
+                return false;
+            }
+            let grow = (1 + (self.rng.next() % 2) as Block).min(3 - stage as Block);
+            self.world.set_block(p.x, p.y, p.z, b + grow)
+        } else if is_sapling(b) {
+            // (Minecraft: a 45% chance to advance; its saplings need two advances)
+            if self.rng.f() < 0.45 {
+                if let Some(tree) = settle::grow(&self.world, p, b, &mut self.rng) {
+                    self.world.set_many(&tree);
+                }
+            }
+            true
+        } else if is_grassy(b) && self.world.get_block(p.x, p.y + 1, p.z) == AIR {
+            for _ in 0..12 {
+                let c = p + IVec3::new((self.rng.next() % 7) as i32 - 3, 0, (self.rng.next() % 7) as i32 - 3);
+                if is_grassy(self.world.get_block(c.x, c.y, c.z)) && self.world.get_block(c.x, c.y + 1, c.z) == AIR {
+                    let plant = match self.rng.next() % 8 {
+                        0 => FLOWER_RED,
+                        1 => FLOWER_YELLOW,
+                        _ => TALL_GRASS,
+                    };
+                    self.world.set_block(c.x, c.y + 1, c.z, plant);
+                }
+            }
+            true
+        } else {
+            false
+        };
+        if used {
+            self.place_cd = 0.25;
+            self.particles.dust(&mut self.rng, p.as_vec3() + Vec3::new(0.5, 1.1, 0.5), [120, 220, 90], 8, 0.4);
+        }
+        used
+    }
+
+    /// Throws the held snowball: it knocks back what it hits, but does no harm.
+    pub(super) fn throw_snowball(&mut self) {
+        let dir = self.player.look_dir();
+        self.arrows.push(super::Arrow {
+            pos: self.player.eye() + dir * 0.4,
+            vel: dir * 26.0 + self.player.vel * 0.5,
+            life: 5.0,
+            hostile: false,
+            fire: false,
+            snow: true,
+            damage: 0,
+        });
+        self.spend();
+        self.swing = super::SWING;
+        self.place_cd = 0.25;
     }
 
     pub(super) fn door_blocked(&self, p: IVec3, b: Block) -> bool {

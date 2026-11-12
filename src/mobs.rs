@@ -138,7 +138,8 @@ fn drops(m: &Mob, rng: &mut Rng) -> Drops {
         return [(0, 0), (0, 0)];
     }
     match k {
-        Kind::Zombie => [(FIBER, 1 + rng.next() % 2), (IRON_INGOT, (rng.next() % 6 == 0) as u32)],
+        // (Minecraft: zero to two rotten flesh, and now and then an iron ingot)
+        Kind::Zombie => [(items::ROTTEN_FLESH, rng.next() % 3), (IRON_INGOT, (rng.next() % 6 == 0) as u32)],
         Kind::Skeleton => [(ARROW, rng.next() % 3), (BONE, 1 + rng.next() % 2)],
         Kind::Sheep => [(MEAT, 1 + rng.next() % 2), (wool_item(m.wool), !m.sheared as u32)],
         Kind::Puffcap => [(MUSHROOM as Item, 1 + rng.next() % 2), (0, 0)],

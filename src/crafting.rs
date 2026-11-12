@@ -38,6 +38,18 @@ fn pattern(r: &Recipe) -> Option<(usize, Vec<Item>)> {
             SIGN_ITEM => (3, vec![p, p, p, p, p, p, 0, s, 0]),
             FENCE | BIRCH_FENCE => (3, vec![p, s, p, p, s, p]),
             SHIELD => (3, vec![p, IRON_INGOT, p, p, p, p, 0, p, 0]),
+            // wool over planks (the old hide recipe stays shapeless)
+            BED if p != PLANKS => {
+                let wood = r.ins[1].0;
+                (3, vec![p, p, p, wood, wood, wood])
+            }
+            BOWL => (3, vec![p, 0, p, 0, p, 0]),
+            // gold all round the apple or carrot
+            GOLDEN_APPLE | GOLDEN_CARROT => {
+                let middle = r.ins[1].0;
+                (3, vec![p, p, p, p, middle, p, p, p, p])
+            }
+            SNOW => (2, vec![p, p, p, p]),
             i if stair_material(i).is_some() => (3, vec![p, 0, 0, p, p, 0, p, p, p]),
             i if slab_material(i).is_some() => (3, vec![p, p, p]),
             _ => return None,
@@ -189,5 +201,49 @@ mod tests {
         assert!(held.is_empty());
         assert_eq!(slots[0], Stack::new(IRON_PICK, 1));
         assert!(slots[1].is_empty());
+    }
+    fn grid(cells: [Item; 9]) -> [Stack; 9] {
+        cells.map(|i| if i == AIR { Stack::default() } else { Stack::new(i, 1) })
+    }
+    fn made(cells: [Item; 9], workbench: bool) -> Option<(Item, u32)> {
+        recipe(&grid(cells), 3, workbench).map(|i| RECIPES[i].out)
+    }
+    #[test]
+    fn minecraft_item_recipes_use_their_shapes() {
+        let (w, p, g, n) = (CLOTH, PLANKS, GOLD_INGOT, GOLD_NUGGET);
+        // a bed: wool over planks, in either half of the grid
+        assert_eq!(made([w, w, w, p, p, p, 0, 0, 0], true), Some((BED, 1)));
+        assert_eq!(made([0, 0, 0, w, w, w, p, p, p], true), Some((BED, 1)));
+        assert_eq!(made([p, p, p, w, w, w, 0, 0, 0], true), None);
+        assert_eq!(made([w, w, w, p, p, p, 0, 0, 0], false), None);
+        // the old hide bed still crafts
+        assert_eq!(made([p, p, p, HIDE, HIDE, HIDE, 0, 0, 0], true), Some((BED, 1)));
+        assert_eq!(made([p, 0, p, 0, p, 0, 0, 0, 0], true), Some((BOWL, 4)));
+        assert_eq!(made([g, g, g, g, APPLE, g, g, g, g], true), Some((GOLDEN_APPLE, 1)));
+        assert_eq!(made([n, n, n, n, CARROT, n, n, n, n], true), Some((GOLDEN_CARROT, 1)));
+        assert_eq!(made([g, g, g, g, g, g, g, g, APPLE], true), None);
+        assert_eq!(made([n; 9], true), Some((GOLD_INGOT, 1)));
+        assert_eq!(made([IRON_INGOT, 0, 0, 0, 0, 0, 0, 0, 0], false), Some((IRON_NUGGET, 9)));
+        assert_eq!(made([BONE, 0, 0, 0, 0, 0, 0, 0, 0], false), Some((BONE_MEAL, 3)));
+        assert_eq!(made([BONE_MEAL, 0, 0, 0, 0, 0, 0, 0, 0], false), Some((DYE, 1)));
+        let s = SNOWBALL;
+        assert_eq!(recipe(&grid([s, s, 0, s, s, 0, 0, 0, 0]), 2, false).map(|i| RECIPES[i].out), Some((SNOW, 1)));
+        assert_eq!(made([MUSHROOM, MUSHROOM, BERRIES, BERRIES, BOWL, 0, 0, 0, 0], true), Some((STEW, 1)));
+    }
+    #[test]
+    fn new_items_are_items_and_keep_minecraft_rules() {
+        for i in BOWL..ITEM_END {
+            assert!(valid(i) && !is_block(i) && name(i) != "?" && !desc(i).is_empty(), "item {i}");
+        }
+        assert_eq!(max_stack(SNOWBALL), 16);
+        assert_eq!((food(APPLE), food(GOLDEN_CARROT), food(ROTTEN_FLESH)), (4.0, 6.0, 4.0));
+        // snow needs a shovel to give its snowballs
+        assert_eq!(drop_for(SNOW, STONE_SHOVEL), SNOWBALL);
+        assert_eq!(drop_for(SNOW, AIR), AIR);
+        assert_eq!(item_of(SNOW), SNOW);
+        assert_eq!(crate::furnace::smelt(IRON_SWORD), Some((IRON_NUGGET, 1)));
+        assert_eq!(crate::furnace::smelt(GOLD_HELMET), Some((GOLD_NUGGET, 1)));
+        assert_eq!(crate::furnace::smelt(STONE_PICK), None);
+        assert!(icon(CHEST) != icon(PLANKS) && icon(BED) != icon(CLOTH));
     }
 }

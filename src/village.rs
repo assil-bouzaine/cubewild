@@ -573,9 +573,14 @@ impl Village {
             2 | 3 => WORKBENCH,
             _ => FURNACE,
         });
-        e.set(far_a.0, y0, far_a.1, BED);
-        if l.beds > 1 {
-            e.set(far_b.0, y0, far_b.1, BED);
+        // two-block beds: the head in the far corner, the foot towards the door
+        let (dx, dz) = SIDE_DIR[l.side as usize];
+        let head = l.side ^ 1;
+        for (i, (x, z)) in [far_a, far_b].into_iter().enumerate() {
+            if i < l.beds as usize {
+                e.set(x, y0, z, crate::building::bed(head, true));
+                e.set(x + dx, y0, z + dz, crate::building::bed(head, false));
+            }
         }
     }
 }

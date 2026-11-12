@@ -28,6 +28,25 @@ Report measured limits honestly; compilation alone does not verify interactive p
 - [Overworld monsters require complete darkness](https://www.minecraft.net/en-us/article/new-world-generation-java-available-testing)
 - [Fence gates and their recipe](https://www.minecraft.net/en-us/article/fence-gate)
 - [Enchantments](https://learn.microsoft.com/en-us/minecraft/creator/documents/introtoenchantments)
+- [Item list](https://minecraft.wiki/w/Item): every item, linking to its recipe and behaviour
+  (block pages too, e.g. [Chest](https://minecraft.wiki/w/Chest), [Bed](https://minecraft.wiki/w/Bed))
+- [Item and block IDs](https://minecraft-ids.grahamedgecombe.com/): a compact checklist of all items
+
+## Items from Minecraft's item list
+
+Added: bowl, apple, golden apple, iron and gold nuggets, golden carrot, bone meal,
+rotten flesh and snowball (items `BOWL`..`SNOWBALL`, icons in `src/icons.rs`); chests
+with facing and joined large chests; two-block, 9/16-high beds with the wool recipe.
+
+Equivalents already present under other names: crystal (diamond), gem (emerald),
+striker (flint and steel), hide (leather), fibre (string), coal from logs (charcoal),
+forest stew (mushroom stew), ember gate (nether portal).
+
+Still missing, roughly in order of how well they fit the existing systems: beetroot
+(crop, seeds, soup), sugar cane with sugar/paper/book/bookshelf, melon and pumpkin (with
+pie), cookie and cake, feather/egg/chicken, glass bottle, brick and clay ball as items,
+lead and name tag, flower pot, painting and item frame, armour stand, map, crossbow,
+minecart and rails, redstone, lapis, potions and brewing, ender pearls, elytra, trident.
 
 ## Implementation
 

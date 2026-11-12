@@ -4,6 +4,7 @@ mod audio;
 mod boat;
 mod deep;
 mod furnace;
+mod icons;
 mod fluid;
 mod fx;
 mod settle;
@@ -264,6 +265,8 @@ struct Arrow {
     hostile: bool,
     /// an emberwisp's fireball: flies straight, burns, bursts on what it hits
     fire: bool,
+    /// a thrown snowball: knocks back, bursts into snow
+    snow: bool,
     damage: i32,
 }
 
@@ -1227,7 +1230,7 @@ impl Game {
         }
         // developer hooks for checking the menus without playing
         if env("CUBEWILD_TEST_ITEMS").is_some() {
-            for (i, n) in [(CHEST, 2), (items::LADDER, 8), (items::TRAPDOOR, 4), (items::STAIRS + 2, 12), (SLAB, 12), (FENCE, 12), (TORCH, 16), (items::OAK_DOOR, 6), (items::BIRCH_DOOR, 3), (PANE, 32), (LOG, 12), (PLANKS, 7), (COBBLE, 5), (DIRT, 31), (SAND, 1), (items::STICK, 3), (items::MEAT, 4), (items::HIDE, 3), (items::STONE_PICK, 1), (items::SPEAR, 1), (LEAVES, 9), (items::STONE_AXE, 1), (items::WOOD_PICK, 1), (GLASS, 2), (STONE_BRICK, 8), (LEATHER, 1), (BRICK, 4), (items::COAL, 9), (IRON_ORE, 6), (items::IRON_INGOT, 5), (items::CRYSTAL, 4), (items::COOKED_MEAT, 3), (WORKBENCH, 1), (FURNACE, 1), (BED, 1), (LAMP, 2), (items::IRON_PICK, 1), (items::IRON_SWORD, 1), (CACTUS, 2), (SANDSTONE, 6), (BIRCH_LOG, 8), (GRAVEL, 7), (CLAY, 6), (GOLD_ORE, 4), (items::FIBER, 12), (items::BERRIES, 5), (MUSHROOM, 4), (FLOWER_RED, 3), (items::FLINT, 2), (items::LEATHER_CHEST, 1), (items::IRON_CHEST, 1), (items::IRON_HELMET, 1), (items::GOLD_LEGS, 1), (items::CRYSTAL_BOOTS, 1), (items::BOW, 1), (items::ARROW, 24), (items::FISHING_ROD, 1), (items::BUCKET, 1), (items::IRON_HOE, 1), (items::SEEDS, 9), (items::IRON_SHOVEL, 1), (items::SHEARS, 1), (items::COMPASS, 1), (items::CLOCK, 1), (items::WHEAT, 6), (items::CRYSTAL_SWORD, 1), (items::GOLD_INGOT, 8), (items::STEW, 1), (THATCH, 6)] {
+            for (i, n) in [(items::BOWL, 4), (items::APPLE, 3), (items::GOLDEN_APPLE, 1), (items::IRON_NUGGET, 9), (items::GOLD_NUGGET, 9), (items::GOLDEN_CARROT, 2), (items::BONE_MEAL, 6), (items::ROTTEN_FLESH, 3), (items::SNOWBALL, 16), (CHEST, 2), (items::LADDER, 8), (items::TRAPDOOR, 4), (items::STAIRS + 2, 12), (SLAB, 12), (FENCE, 12), (TORCH, 16), (items::OAK_DOOR, 6), (items::BIRCH_DOOR, 3), (PANE, 32), (LOG, 12), (PLANKS, 7), (COBBLE, 5), (DIRT, 31), (SAND, 1), (items::STICK, 3), (items::MEAT, 4), (items::HIDE, 3), (items::STONE_PICK, 1), (items::SPEAR, 1), (LEAVES, 9), (items::STONE_AXE, 1), (items::WOOD_PICK, 1), (GLASS, 2), (STONE_BRICK, 8), (LEATHER, 1), (BRICK, 4), (items::COAL, 9), (IRON_ORE, 6), (items::IRON_INGOT, 5), (items::CRYSTAL, 4), (items::COOKED_MEAT, 3), (WORKBENCH, 1), (FURNACE, 1), (BED, 1), (LAMP, 2), (items::IRON_PICK, 1), (items::IRON_SWORD, 1), (CACTUS, 2), (SANDSTONE, 6), (BIRCH_LOG, 8), (GRAVEL, 7), (CLAY, 6), (GOLD_ORE, 4), (items::FIBER, 12), (items::BERRIES, 5), (MUSHROOM, 4), (FLOWER_RED, 3), (items::FLINT, 2), (items::LEATHER_CHEST, 1), (items::IRON_CHEST, 1), (items::IRON_HELMET, 1), (items::GOLD_LEGS, 1), (items::CRYSTAL_BOOTS, 1), (items::BOW, 1), (items::ARROW, 24), (items::FISHING_ROD, 1), (items::BUCKET, 1), (items::IRON_HOE, 1), (items::SEEDS, 9), (items::IRON_SHOVEL, 1), (items::SHEARS, 1), (items::COMPASS, 1), (items::CLOCK, 1), (items::WHEAT, 6), (items::CRYSTAL_SWORD, 1), (items::GOLD_INGOT, 8), (items::STEW, 1), (THATCH, 6)] {
                 inv.add(i, n);
             }
         }
@@ -2008,6 +2011,13 @@ impl Game {
             (5, 0, 2, TRAP_BASE),
             (5, 0, 4, TRAP_BASE + 1 + TRAP_OPEN),
             (5, 0, 5, SLAB),
+            // inside: a large chest and a single one by the south wall facing north, and
+            // a bed by the north wall with its head to the north
+            (1, 0, 5, building::chest(2, 1)),
+            (2, 0, 5, building::chest(2, 2)),
+            (4, 0, 5, building::chest(2, 0)),
+            (1, 0, 2, building::bed(2, false)),
+            (1, 0, 1, building::bed(2, true)),
         ] {
             self.world.set_block_bg(ox + dx, y0 + dy, oz + dz, b);
         }
@@ -2221,6 +2231,9 @@ impl Game {
                 let col = self.block_color(b);
                 self.particles.chips(&mut self.rng, c, col, 4);
                 if !creative {
+                    if b == LEAVES && self.rng.f() < 0.005 {
+                        self.pickups.pop(&mut self.rng, at, Stack::new(items::APPLE, 1));
+                    }
                     if self.rng.f() < 0.06 {
                         self.pickups.pop(&mut self.rng, at, Stack::new(items::item_of(sapling_of(b)), 1));
                     } else if self.rng.f() < 0.03 {
@@ -2295,10 +2308,10 @@ impl Game {
                 }
             }
             for (pos, vel) in self.mobs.shots.drain(..) {
-                self.arrows.push(Arrow { pos, vel, life: 5.0, hostile: true, fire: false, damage: 3 });
+                self.arrows.push(Arrow { pos, vel, life: 5.0, hostile: true, fire: false, snow: false, damage: 3 });
             }
             for (pos, vel) in self.mobs.fireballs.drain(..) {
-                self.arrows.push(Arrow { pos, vel, life: 4.0, hostile: true, fire: true, damage: 4 });
+                self.arrows.push(Arrow { pos, vel, life: 4.0, hostile: true, fire: true, snow: false, damage: 4 });
                 self.audio.play_var(Snd::Fizz, pos, 0.7);
             }
             if self.mode == Mode::Creative {
@@ -2430,6 +2443,8 @@ impl Game {
                         projectile::Hit::Block => {
                             if a.fire {
                                 bursts.push(impact);
+                            } else if a.snow {
+                                self.particles.dust(&mut self.rng, impact, [240, 246, 252], 8, 0.3);
                             } else {
                                 self.audio.play_var(Snd::ArrowHit, impact, 0.6);
                             }
@@ -2604,7 +2619,11 @@ impl Game {
             push_box(&mut ents, &spin, Vec3::new(-0.22, -0.16, -0.16), Vec3::new(0.22, 0.16, 0.16), [240, 70, 30], gfx::EMISSIVE);
             push_box(&mut ents, &spin, Vec3::new(-0.16, -0.22, -0.16), Vec3::new(0.16, 0.22, 0.16), [200, 40, 30], 200);
         }
-        for a in self.arrows.iter().filter(|a| !a.fire) {
+        for a in self.arrows.iter().filter(|a| a.snow) {
+            let m = Mat4::from_translation(a.pos - eye);
+            push_box(&mut ents, &m, Vec3::splat(-0.09), Vec3::splat(0.09), [240, 246, 252], 255);
+        }
+        for a in self.arrows.iter().filter(|a| !a.fire && !a.snow) {
             let m = Mat4::from_rotation_translation(Quat::from_rotation_arc(Vec3::Z, a.vel.normalize_or(Vec3::Z)), a.pos - eye);
             push_box(&mut ents, &m, Vec3::new(-0.025, -0.025, -0.5), Vec3::new(0.025, 0.025, 0.3), [150, 110, 64], 255);
             push_box(&mut ents, &m, Vec3::new(-0.05, -0.05, 0.3), Vec3::new(0.05, 0.05, 0.42), [90, 94, 106], 255);

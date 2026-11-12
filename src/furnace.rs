@@ -41,7 +41,12 @@ pub fn smelt(i: Item) -> Option<(Item, u32)> {
         COBBLE => (STONE, 1),
         SAND | RED_SAND => (GLASS, 1),
         CLAY => (BRICK, 2),
-        _ => return None,
+        // old iron and gold gear melts down into a nugget, as in Minecraft
+        i => match items::gear(i) {
+            Some((_, items::Mat::Iron)) => (items::IRON_NUGGET, 1),
+            Some((_, items::Mat::Gold)) => (items::GOLD_NUGGET, 1),
+            _ => return None,
+        },
     })
 }
 
@@ -66,7 +71,7 @@ pub fn fuel(i: Item) -> f32 {
         LOG | BIRCH_LOG | PLANKS | BIRCH_PLANKS | WORKBENCH | CHEST | FENCE | BIRCH_FENCE => 15.0,
         items::LADDER | items::TRAPDOOR | items::OAK_DOOR | items::BIRCH_DOOR => 12.0,
         i if (SLAB..SLAB + 2).contains(&i) => 7.5,
-        items::STICK => 5.0,
+        items::STICK | items::BOWL => 5.0,
         items::FIBER | DEAD_BUSH => 2.5,
         i => match items::gear(i) {
             Some((_, items::Mat::Wood)) => 10.0,
